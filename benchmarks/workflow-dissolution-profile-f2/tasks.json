@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "fixture": "synthetic fixture",
+  "tasks": [
+    {
+      "id": "hand-factors",
+      "question": "Recompute f1 and f2 from the supplied synthetic product means.",
+      "input": "examples/workflow-dissolution-profile-f2/pack.json",
+      "acceptance_criteria": [
+        "f1 matches 80/21 with relative tolerance 1e-9 and no absolute tolerance.",
+        "f2 matches 50 log10(100/sqrt(5)) using means, not unit pairs.",
+        "All CV controls pass; review stays unavailable."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "network_calls": 0,
+        "gpu_seconds": 0
+      }
+    },
+    {
+      "id": "seeded-refusals",
+      "question": "Admit each synthetic mutation and retain its stated finding.",
+      "input": "examples/workflow-dissolution-profile-f2/negative-cases.json",
+      "acceptance_criteria": [
+        "Each seeded failure is refused for its distinct declared finding.",
+        "CV failure cannot produce similarity wording; unavailable evidence never becomes negative evidence."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "network_calls": 0,
+        "gpu_seconds": 0
+      }
+    }
+  ]
+}

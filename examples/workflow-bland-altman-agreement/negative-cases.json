@@ -1,0 +1,201 @@
+{
+  "cases": [
+    {
+      "base": "",
+      "finding": "correlation-as-agreement",
+      "id": "correlation-as-agreement",
+      "path": [
+        "agreement_measure"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "correlation"
+    },
+    {
+      "base": "log-",
+      "finding": "difference-scale",
+      "id": "wrong-log-scale",
+      "path": [
+        "scale"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "original"
+    },
+    {
+      "base": "",
+      "finding": "repeated-measures",
+      "id": "repeated-measures",
+      "path": [
+        "rows",
+        "0",
+        "method_a"
+      ],
+      "remove": false,
+      "target": "pairs",
+      "value": [
+        10,
+        11
+      ]
+    },
+    {
+      "base": "interval-",
+      "finding": "agreement-interval",
+      "id": "missing-interval",
+      "path": [
+        "summary",
+        "intervals"
+      ],
+      "remove": true,
+      "target": "report",
+      "value": null
+    },
+    {
+      "base": "",
+      "finding": "agreement-interval",
+      "id": "too-few-interval",
+      "path": [
+        "summary",
+        "intervals"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": {}
+    },
+    {
+      "base": "",
+      "finding": "proportional-bias",
+      "id": "ignored-proportional-bias",
+      "path": [
+        "summary",
+        "proportional_bias"
+      ],
+      "remove": true,
+      "target": "report",
+      "value": null
+    },
+    {
+      "base": "",
+      "finding": "unpaired-unit",
+      "id": "unpaired-unit",
+      "path": [
+        "rows",
+        "6"
+      ],
+      "remove": true,
+      "target": "pairs",
+      "value": null
+    },
+    {
+      "base": "",
+      "finding": "post-hoc-bound",
+      "id": "post-hoc-bound",
+      "path": [
+        "maximum_allowed_difference"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": 7
+    },
+    {
+      "base": "",
+      "finding": "rule-freeze",
+      "id": "unfrozen-rules",
+      "path": [
+        "frozen_before_values_read"
+      ],
+      "remove": false,
+      "target": "pack",
+      "value": false
+    },
+    {
+      "base": "",
+      "finding": "claim-overreach",
+      "id": "overreach-interchangeability",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture establishes interchangeability"
+    },
+    {
+      "base": "",
+      "finding": "claim-overreach",
+      "id": "overreach-clinical-acceptability",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture establishes clinical acceptability"
+    },
+    {
+      "base": "",
+      "finding": "claim-overreach",
+      "id": "overreach-equivalence",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture establishes equivalence"
+    },
+    {
+      "base": "",
+      "finding": "claim-overreach",
+      "id": "overreach-method-validity",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture establishes method validity"
+    },
+    {
+      "base": "",
+      "finding": "claim-overreach",
+      "id": "overreach-causality",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture establishes causality"
+    },
+    {
+      "base": "",
+      "finding": "claim-overreach",
+      "id": "overreach-physical-validity",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture establishes physical validity"
+    },
+    {
+      "base": "",
+      "finding": "claim-overreach",
+      "id": "overreach-truth",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture establishes truth"
+    },
+    {
+      "base": "",
+      "finding": "correlation-as-agreement",
+      "id": "correlation-text",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "High correlation demonstrates agreement"
+    }
+  ],
+  "fixture": "synthetic fixture"
+}

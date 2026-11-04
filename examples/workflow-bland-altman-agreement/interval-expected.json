@@ -1,0 +1,256 @@
+{
+  "computation": {
+    "summary": {
+      "bias": 2.0,
+      "intervals": {
+        "bias": {
+          "lower": 1.5096937217436421,
+          "upper": 2.490306278256358
+        },
+        "degrees_of_freedom": 29,
+        "level": 0.95,
+        "lower_limit": {
+          "lower": -1.422841469260577,
+          "upper": 0.2756293011594534
+        },
+        "method": "bland-altman-1986-t",
+        "upper_limit": {
+          "lower": 3.7243706988405467,
+          "upper": 5.422841469260577
+        }
+      },
+      "limits_within_bound": true,
+      "lower_limit": -0.5736060840505619,
+      "n": 30,
+      "normality": {
+        "excess_kurtosis": -1.0937333333333328,
+        "screen": "passed",
+        "skewness": 0.0
+      },
+      "proportional_bias": {
+        "degrees_of_freedom": 28,
+        "method": "exact-t-regression",
+        "p_value": 0.30456480365146776,
+        "screen": "not-detected",
+        "slope": 0.00289210233592881,
+        "t": 1.0458733827218687
+      },
+      "sd_difference": 1.3130643285972254,
+      "unavailable": 0,
+      "upper_limit": 4.573606084050562
+    },
+    "units": [
+      {
+        "difference": 0.0,
+        "mean": 10.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u01"
+      },
+      {
+        "difference": 1.0,
+        "mean": 20.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u02"
+      },
+      {
+        "difference": 2.0,
+        "mean": 30.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u03"
+      },
+      {
+        "difference": 2.0,
+        "mean": 40.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u04"
+      },
+      {
+        "difference": 3.0,
+        "mean": 50.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u05"
+      },
+      {
+        "difference": 4.0,
+        "mean": 60.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u06"
+      },
+      {
+        "difference": 0.0,
+        "mean": 70.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u07"
+      },
+      {
+        "difference": 1.0,
+        "mean": 80.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u08"
+      },
+      {
+        "difference": 2.0,
+        "mean": 90.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u09"
+      },
+      {
+        "difference": 2.0,
+        "mean": 100.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u10"
+      },
+      {
+        "difference": 3.0,
+        "mean": 110.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u11"
+      },
+      {
+        "difference": 4.0,
+        "mean": 120.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u12"
+      },
+      {
+        "difference": 0.0,
+        "mean": 130.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u13"
+      },
+      {
+        "difference": 1.0,
+        "mean": 140.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u14"
+      },
+      {
+        "difference": 2.0,
+        "mean": 150.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u15"
+      },
+      {
+        "difference": 2.0,
+        "mean": 160.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u16"
+      },
+      {
+        "difference": 3.0,
+        "mean": 170.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u17"
+      },
+      {
+        "difference": 4.0,
+        "mean": 180.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u18"
+      },
+      {
+        "difference": 0.0,
+        "mean": 190.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u19"
+      },
+      {
+        "difference": 1.0,
+        "mean": 200.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u20"
+      },
+      {
+        "difference": 2.0,
+        "mean": 210.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u21"
+      },
+      {
+        "difference": 2.0,
+        "mean": 220.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u22"
+      },
+      {
+        "difference": 3.0,
+        "mean": 230.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u23"
+      },
+      {
+        "difference": 4.0,
+        "mean": 240.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u24"
+      },
+      {
+        "difference": 0.0,
+        "mean": 250.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u25"
+      },
+      {
+        "difference": 1.0,
+        "mean": 260.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u26"
+      },
+      {
+        "difference": 2.0,
+        "mean": 270.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u27"
+      },
+      {
+        "difference": 2.0,
+        "mean": 280.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u28"
+      },
+      {
+        "difference": 3.0,
+        "mean": 290.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u29"
+      },
+      {
+        "difference": 4.0,
+        "mean": 300.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u30"
+      }
+    ]
+  },
+  "fixture": "synthetic fixture"
+}

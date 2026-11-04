@@ -1,0 +1,85 @@
+{
+  "computation": {
+    "samples": [
+      {
+        "cells_per_ml": 400000.0,
+        "classification": "quantified",
+        "count_uncertainty": {
+          "method": "poisson-standard-error",
+          "relative_standard_error": 0.15811388300841897,
+          "standard_error_per_ml": 63245.55320336759
+        },
+        "excluded_squares": [],
+        "included_squares": [
+          [
+            "A1",
+            "s1"
+          ],
+          [
+            "A1",
+            "s2"
+          ],
+          [
+            "A2",
+            "s1"
+          ],
+          [
+            "A2",
+            "s2"
+          ]
+        ],
+        "recorded_dead": 8,
+        "recorded_live": 32,
+        "recorded_squares": 4,
+        "replicate_disagreement": 0.0,
+        "sample_id": "A",
+        "usable_total": 40,
+        "viability": 0.8,
+        "viability_interval": {
+          "level": 0.95,
+          "lower": 0.6435219813207658,
+          "method": "clopper-pearson-exact",
+          "upper": 0.909477590600009
+        }
+      },
+      {
+        "cells_per_ml": "unavailable",
+        "classification": "unavailable",
+        "count_uncertainty": "unavailable",
+        "excluded_squares": [
+          [
+            "B1",
+            "s1"
+          ],
+          [
+            "B1",
+            "s2"
+          ],
+          [
+            "B2",
+            "s1"
+          ],
+          [
+            "B2",
+            "s2"
+          ]
+        ],
+        "included_squares": [],
+        "recorded_dead": 0,
+        "recorded_live": 4,
+        "recorded_squares": 4,
+        "replicate_disagreement": "unavailable",
+        "sample_id": "B",
+        "usable_total": 0,
+        "viability": "unavailable",
+        "viability_interval": "unavailable"
+      }
+    ],
+    "summary": {
+      "n": 2,
+      "quantified": 1,
+      "unavailable": 1
+    }
+  },
+  "fixture": "synthetic fixture"
+}

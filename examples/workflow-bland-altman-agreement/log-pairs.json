@@ -1,0 +1,66 @@
+{
+  "fixture": "synthetic fixture",
+  "rows": [
+    {
+      "method_a": [
+        2.718281828459045
+      ],
+      "method_b": [
+        2.718281828459045
+      ],
+      "unit_id": "u01",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        7.767901106306771
+      ],
+      "method_b": [
+        7.028687580589293
+      ],
+      "unit_id": "u02",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        22.197951281441636
+      ],
+      "method_b": [
+        18.17414536944306
+      ],
+      "unit_id": "u03",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        60.34028759736195
+      ],
+      "method_b": [
+        49.40244910553017
+      ],
+      "unit_id": "u04",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        172.43149031685434
+      ],
+      "method_b": [
+        127.7403898460288
+      ],
+      "unit_id": "u05",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        492.7490410932563
+      ],
+      "method_b": [
+        330.2995599096486
+      ],
+      "unit_id": "u06",
+      "units": "synthetic-unit"
+    }
+  ],
+  "schema": "ba-pairs-v1"
+}

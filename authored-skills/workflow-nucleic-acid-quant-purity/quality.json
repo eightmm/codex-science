@@ -1,0 +1,57 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-nucleic-acid-quant-purity/pack.json",
+    "examples/workflow-nucleic-acid-quant-purity/expected.json",
+    "examples/workflow-nucleic-acid-quant-purity/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 is offline synthetic fixture acceptance only; no assay, sample suitability or downstream use is established.",
+    "Conversion, blank matching, path length and dilution are assumptions, never validated observations.",
+    "Hashes cannot establish historical freeze timing or true independence. Independent review remains unavailable.",
+    "Conservative case-insensitive English whole-word/prefix families: caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Also truth, physical validity, patient benefit, quality, suitab*, sequenc*, clon*, PCR, downstream and safe*. The gate includes negations and is incomplete.",
+    "Unavailable evidence requires unavailable claims; computed agreement and review approval cannot support positive claims. One synthetic fixture never establishes replication.",
+    "Read-only inputs: 64 MiB each, 256 MiB aggregate, 4000000 JSON values; hardlink aliases share initial reads and parsing."
+  ],
+  "output_schemas": [
+    "nuc-pack-v1",
+    "nuc-rules-v1",
+    "nuc-readings-v1",
+    "nuc-report-v1",
+    "nuc-evidence-v1",
+    "nuc-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "background-omitted",
+    "background-numeric",
+    "wrong-analyte-factor",
+    "zero-denominator",
+    "negative-denominator",
+    "negative-blank-subtracted",
+    "outside-linear-quantified",
+    "blank-mixed",
+    "missing-blank",
+    "dilution-ignored",
+    "path-scaling-ignored",
+    "bands-relaxed",
+    "discordant-replicates",
+    "unfrozen-rules",
+    "overreach-quality",
+    "overreach-suitability",
+    "overreach-sequencing",
+    "overreach-cloning",
+    "overreach-pcr",
+    "overreach-downstream-use",
+    "overreach-causality",
+    "overreach-physical-validity"
+  ],
+  "skill": "workflow-nucleic-acid-quant-purity",
+  "test_files": [
+    "tests/test_workflow_nuc_pack.py"
+  ]
+}

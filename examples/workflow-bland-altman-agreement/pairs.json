@@ -1,0 +1,74 @@
+{
+  "fixture": "synthetic fixture",
+  "rows": [
+    {
+      "method_a": [
+        10.0
+      ],
+      "method_b": [
+        10.0
+      ],
+      "unit_id": "u01",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        20.5
+      ],
+      "method_b": [
+        19.5
+      ],
+      "unit_id": "u02",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        31.0
+      ],
+      "method_b": [
+        29.0
+      ],
+      "unit_id": "u03",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        41.0
+      ],
+      "method_b": [
+        39.0
+      ],
+      "unit_id": "u04",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        51.5
+      ],
+      "method_b": [
+        48.5
+      ],
+      "unit_id": "u05",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        62.0
+      ],
+      "method_b": [
+        58.0
+      ],
+      "unit_id": "u06",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": null,
+      "method_b": [
+        70
+      ],
+      "unit_id": "u-missing",
+      "units": "synthetic-unit"
+    }
+  ],
+  "schema": "ba-pairs-v1"
+}

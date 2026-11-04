@@ -1,0 +1,19 @@
+{
+  "counts": {
+    "path": "counts.json",
+    "sha256": "861e7fc37e2167347f11ad15c4d71a8ad84829c500249a2b121c11b753291eb6"
+  },
+  "evidence": [],
+  "fixture": "synthetic fixture",
+  "frozen_before_counts_read": true,
+  "frozen_rules_sha256": "33d96995265a76c21b7566da30b0e1520a8ddccd503b2ea9454e24449fb6ae38",
+  "report": {
+    "path": "report.json",
+    "sha256": "af81a0c26c10bcfab5ecc294c3468e3479eac572247b19488361f7ad606a30c0"
+  },
+  "rules": {
+    "path": "rules.json",
+    "sha256": "33d96995265a76c21b7566da30b0e1520a8ddccd503b2ea9454e24449fb6ae38"
+  },
+  "schema": "cell-pack-v1"
+}

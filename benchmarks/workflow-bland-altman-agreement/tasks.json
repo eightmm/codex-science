@@ -1,0 +1,58 @@
+{
+  "fixture": "synthetic fixture",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Six complete units have bias 2, sample SD sqrt(2) and limits 2 plus/minus 1.96sqrt(2).",
+        "Slope is 13/175, t squared is 338/3 on 4 df; detected proportional bias stays visible.",
+        "One missing-method unit remains unavailable and excluded; intervals and independent review remain unavailable."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu_hours": 0,
+        "network_calls": 0
+      },
+      "id": "hand-paired-arithmetic",
+      "inputs": [
+        "examples/workflow-bland-altman-agreement/pack.json"
+      ],
+      "question": "What are the synthetic paired bias, limits, proportional-bias check and explicit missing-unit denominator?"
+    },
+    {
+      "acceptance_criteria": [
+        "Thirty pairs have sample SD sqrt(50/29) and bias/limit CIs using t(29) approximately 2.045229642132703.",
+        "Six log pairs have bias .2 and SD sqrt(2)/10, with unavailable confidence intervals.",
+        "All reported values use relative tolerance 1e-9 with zero absolute tolerance."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu_hours": 0,
+        "network_calls": 0
+      },
+      "id": "interval-and-log-edges",
+      "inputs": [
+        "examples/workflow-bland-altman-agreement/interval-pack.json",
+        "examples/workflow-bland-altman-agreement/log-pack.json"
+      ],
+      "question": "Are confidence intervals available at 30 units and are natural-log differences computed on the declared scale?"
+    },
+    {
+      "acceptance_criteria": [
+        "Every mutation is exercised through the public validator and fails for its distinct declared finding.",
+        "Boundary and evidence refusals precede later arithmetic errors.",
+        "The CLI writes no files; all refusals including argument errors are JSON with finding on stderr and exit 2."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_hours": 0,
+        "network_calls": 0
+      },
+      "id": "seeded-refusals",
+      "inputs": [
+        "examples/workflow-bland-altman-agreement/negative-cases.json"
+      ],
+      "question": "Does each synthetic seeded defect refuse for its stated finding?"
+    }
+  ]
+}

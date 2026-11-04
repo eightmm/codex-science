@@ -1,0 +1,19 @@
+{
+  "evidence": [],
+  "fixture": "synthetic fixture",
+  "frozen_before_values_read": true,
+  "frozen_rules_sha256": "57253c0aa26560659a060ca57d3a5c007609bdc668208127afdd38a3d598dcc2",
+  "pairs": {
+    "path": "interval-pairs.json",
+    "sha256": "043898c406874b61b0de515da6aff2a160b20872dfe08e3ce7532bf0b32246a7"
+  },
+  "report": {
+    "path": "interval-report.json",
+    "sha256": "6fa2b0fafb7f9dd94b9cff1b7206a924495d5228514cbecf4d10c5414c7d175d"
+  },
+  "rules": {
+    "path": "interval-rules.json",
+    "sha256": "57253c0aa26560659a060ca57d3a5c007609bdc668208127afdd38a3d598dcc2"
+  },
+  "schema": "ba-pack-v1"
+}

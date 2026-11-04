@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze unit IDs, reference, units, scale, replicate handling, intervals, bias screens and arithmetic difference bound before values.",
+      "id": "01-rule-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Admit immutable synthetic pairs; preserve missing methods and refuse identity, units, scale or replicate defects.",
+      "id": "02-pair-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Compute bias, sample SD, limits, t intervals, exact regression t test, frozen moment screen and descriptive bound comparison.",
+      "id": "03-agreement",
+      "status": "pending"
+    },
+    {
+      "description": "Preserve complete-unit denominator, unavailable units, all controls, negative results and uncertainty.",
+      "id": "04-summary",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate claims for coordinator-owned independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

@@ -1,0 +1,126 @@
+{
+  "fixture": "synthetic fixture",
+  "rows": [
+    {
+      "chamber_id": "A1",
+      "clumped": false,
+      "counter_id": "counter-A1",
+      "dead": 2,
+      "dilution_factor": 2,
+      "live": 8,
+      "mixing_ratio": {
+        "dye_parts": 1,
+        "sample_parts": 1
+      },
+      "sample_id": "A",
+      "square_id": "s1",
+      "volume_ml": 0.0001
+    },
+    {
+      "chamber_id": "A1",
+      "clumped": false,
+      "counter_id": "counter-A1",
+      "dead": 2,
+      "dilution_factor": 2,
+      "live": 8,
+      "mixing_ratio": {
+        "dye_parts": 1,
+        "sample_parts": 1
+      },
+      "sample_id": "A",
+      "square_id": "s2",
+      "volume_ml": 0.0001
+    },
+    {
+      "chamber_id": "A2",
+      "clumped": false,
+      "counter_id": "counter-A2",
+      "dead": 2,
+      "dilution_factor": 2,
+      "live": 8,
+      "mixing_ratio": {
+        "dye_parts": 1,
+        "sample_parts": 1
+      },
+      "sample_id": "A",
+      "square_id": "s1",
+      "volume_ml": 0.0001
+    },
+    {
+      "chamber_id": "A2",
+      "clumped": false,
+      "counter_id": "counter-A2",
+      "dead": 2,
+      "dilution_factor": 2,
+      "live": 8,
+      "mixing_ratio": {
+        "dye_parts": 1,
+        "sample_parts": 1
+      },
+      "sample_id": "A",
+      "square_id": "s2",
+      "volume_ml": 0.0001
+    },
+    {
+      "chamber_id": "B1",
+      "clumped": false,
+      "counter_id": "counter-B1",
+      "dead": 0,
+      "dilution_factor": 2,
+      "live": 1,
+      "mixing_ratio": {
+        "dye_parts": 1,
+        "sample_parts": 1
+      },
+      "sample_id": "B",
+      "square_id": "s1",
+      "volume_ml": 0.0001
+    },
+    {
+      "chamber_id": "B1",
+      "clumped": false,
+      "counter_id": "counter-B1",
+      "dead": 0,
+      "dilution_factor": 2,
+      "live": 1,
+      "mixing_ratio": {
+        "dye_parts": 1,
+        "sample_parts": 1
+      },
+      "sample_id": "B",
+      "square_id": "s2",
+      "volume_ml": 0.0001
+    },
+    {
+      "chamber_id": "B2",
+      "clumped": false,
+      "counter_id": "counter-B2",
+      "dead": 0,
+      "dilution_factor": 2,
+      "live": 1,
+      "mixing_ratio": {
+        "dye_parts": 1,
+        "sample_parts": 1
+      },
+      "sample_id": "B",
+      "square_id": "s1",
+      "volume_ml": 0.0001
+    },
+    {
+      "chamber_id": "B2",
+      "clumped": false,
+      "counter_id": "counter-B2",
+      "dead": 0,
+      "dilution_factor": 2,
+      "live": 1,
+      "mixing_ratio": {
+        "dye_parts": 1,
+        "sample_parts": 1
+      },
+      "sample_id": "B",
+      "square_id": "s2",
+      "volume_ml": 0.0001
+    }
+  ],
+  "schema": "cell-counts-v1"
+}

@@ -1,0 +1,160 @@
+{
+  "claims": [
+    {
+      "evidence": [],
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "text": "Scientific interpretation remains unavailable for this synthetic fixture."
+    }
+  ],
+  "confidence_level": 0.95,
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "headline": "Synthetic fixture partition arithmetic only.",
+  "interval_method": "clopper-pearson-exact",
+  "rules_sha256": "7ca68390c075923e60931562ae16d757168579232544135fe4cc2f2f69eb1bc5",
+  "samples": [
+    {
+      "concentration_copies_per_ul": 8.317766166719343,
+      "interval": {
+        "level": 0.95,
+        "lower": 2.0496416394329615,
+        "method": "clopper-pearson-exact-transformed",
+        "upper": 22.217137635118853
+      },
+      "lambda": 0.6931471805599453,
+      "positive": 4,
+      "positive_fraction": 0.5,
+      "reason": "none",
+      "sample_id": "A",
+      "status": "quantified",
+      "total": 8,
+      "well_ids": [
+        "a1",
+        "a2"
+      ]
+    },
+    {
+      "concentration_copies_per_ul": 0.0,
+      "interval": {
+        "level": 0.95,
+        "lower": 0.0,
+        "method": "clopper-pearson-exact-transformed",
+        "upper": 5.533319181170903
+      },
+      "lambda": 0.0,
+      "positive": 0,
+      "positive_fraction": 0.0,
+      "reason": "none",
+      "sample_id": "Z",
+      "status": "quantified",
+      "total": 8,
+      "well_ids": [
+        "z1",
+        "z2"
+      ]
+    }
+  ],
+  "schema": "ddpcr-report-v1",
+  "summary": {
+    "mean_concentration_copies_per_ul": 4.1588830833596715,
+    "n": 2,
+    "ntc_passed": true,
+    "quantified": 2,
+    "unavailable": 0
+  },
+  "thresholds": {
+    "agreement_bound": 0.25,
+    "minimum_accepted_partitions": 4,
+    "ntc_maximum_positive": 0,
+    "saturation_bound": 0.7
+  },
+  "wells": [
+    {
+      "concentration_copies_per_ul": 8.317766166719343,
+      "interval": {
+        "level": 0.95,
+        "lower": 0.839740109128917,
+        "method": "clopper-pearson-exact-transformed",
+        "upper": 32.33225541465925
+      },
+      "lambda": 0.6931471805599453,
+      "positive": 2,
+      "positive_fraction": 0.5,
+      "reason": "none",
+      "role": "sample",
+      "sample_id": "A",
+      "status": "quantified",
+      "total": 4,
+      "well_id": "a1"
+    },
+    {
+      "concentration_copies_per_ul": 8.317766166719343,
+      "interval": {
+        "level": 0.95,
+        "lower": 0.839740109128917,
+        "method": "clopper-pearson-exact-transformed",
+        "upper": 32.33225541465925
+      },
+      "lambda": 0.6931471805599453,
+      "positive": 2,
+      "positive_fraction": 0.5,
+      "reason": "none",
+      "role": "sample",
+      "sample_id": "A",
+      "status": "quantified",
+      "total": 4,
+      "well_id": "a2"
+    },
+    {
+      "concentration_copies_per_ul": 0.0,
+      "interval": {
+        "level": 0.95,
+        "lower": 0.0,
+        "method": "clopper-pearson-exact-transformed",
+        "upper": 11.066638362341806
+      },
+      "lambda": 0.0,
+      "positive": 0,
+      "positive_fraction": 0.0,
+      "reason": "none",
+      "role": "sample",
+      "sample_id": "Z",
+      "status": "quantified",
+      "total": 4,
+      "well_id": "z1"
+    },
+    {
+      "concentration_copies_per_ul": 0.0,
+      "interval": {
+        "level": 0.95,
+        "lower": 0.0,
+        "method": "clopper-pearson-exact-transformed",
+        "upper": 11.066638362341806
+      },
+      "lambda": 0.0,
+      "positive": 0,
+      "positive_fraction": 0.0,
+      "reason": "none",
+      "role": "sample",
+      "sample_id": "Z",
+      "status": "quantified",
+      "total": 4,
+      "well_id": "z2"
+    },
+    {
+      "concentration_copies_per_ul": "unavailable",
+      "interval": "unavailable",
+      "lambda": "unavailable",
+      "positive": 0,
+      "positive_fraction": 0.0,
+      "reason": "none",
+      "role": "ntc",
+      "sample_id": "NTC",
+      "status": "control-passed",
+      "total": 4,
+      "well_id": "n1"
+    }
+  ]
+}

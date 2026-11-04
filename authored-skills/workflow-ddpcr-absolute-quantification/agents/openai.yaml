@@ -1,0 +1,4 @@
+interface:
+  display_name: "ddPCR Absolute Quantification"
+  short_description: "Check frozen droplet counts, Poisson concentration and exact bounds"
+  default_prompt: "Use $workflow-ddpcr-absolute-quantification to freeze partition rules, check supplied synthetic counts and controls, compute Poisson concentrations with exact binomial bounds, and hand bounded artifacts to independent review."

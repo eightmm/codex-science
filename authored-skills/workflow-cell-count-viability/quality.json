@@ -1,0 +1,58 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-cell-count-viability/pack.json",
+    "examples/workflow-cell-count-viability/expected.json",
+    "examples/workflow-cell-count-viability/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 is offline synthetic fixture acceptance only; no culture, assay, biological, product or clinical validity is established.",
+    "Poisson counts and binomial sampling with known exposures are assumptions. Countability and clumping selection may affect coverage.",
+    "Hashes do not establish historical freeze timing or true source independence. The pack always leaves independent review unavailable.",
+    "Conservative case-insensitive English whole-word/prefix families: caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Also culture health, releas*, health*, truth, physical validity, patient benefit, steril*, safe* and poten*. The gate includes negations and is incomplete.",
+    "Unavailable evidence requires unavailable claims. Computed agreement and review approval never support positive claims; one synthetic fixture never establishes replication.",
+    "Read-only input limits are 64 MiB each, 256 MiB aggregate, 256 paths and 4000000 JSON values; hardlink aliases share initial reads and parsing."
+  ],
+  "output_schemas": [
+    "cell-pack-v1",
+    "cell-rules-v1",
+    "cell-counts-v1",
+    "cell-report-v1",
+    "cell-evidence-v1",
+    "cell-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "missing-dilution",
+    "missing-volume",
+    "missing-mixing",
+    "mixed-dilution",
+    "mixed-chamber-factor",
+    "mixed-mixing",
+    "outside-range-averaged",
+    "too-few-viability",
+    "too-few-interval",
+    "wald-interval",
+    "wald-sample-interval",
+    "replicates-pooled",
+    "clumped-kept",
+    "post-hoc-squares",
+    "unavailable-zero",
+    "unfrozen-rules",
+    "missing-square",
+    "overreach-culture-health",
+    "overreach-potency",
+    "overreach-release",
+    "overreach-clinical-relevance",
+    "overreach-causality",
+    "overreach-physical-validity"
+  ],
+  "skill": "workflow-cell-count-viability",
+  "test_files": [
+    "tests/test_workflow_cell_pack.py"
+  ]
+}

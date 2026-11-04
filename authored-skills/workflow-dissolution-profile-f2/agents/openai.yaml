@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dissolution Profile f1 and f2"
+  short_description: "Check frozen synthetic dissolution factors and CV controls"
+  default_prompt: "Use $workflow-dissolution-profile-f2 to freeze shared times and unit counts, check supplied synthetic profiles, compute mean-based f1/f2 with CV controls, and hand bounded artifacts to independent review."

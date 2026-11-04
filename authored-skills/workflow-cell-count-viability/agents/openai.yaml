@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cell Count and Viability"
+  short_description: "Check frozen chamber counts and exact live-fraction bounds"
+  default_prompt: "Use $workflow-cell-count-viability to freeze chamber and square rules, check supplied synthetic cell counts, compute concentration and exact viability bounds, and hand bounded artifacts to independent review."

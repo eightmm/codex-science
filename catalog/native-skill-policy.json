@@ -310,6 +310,51 @@
       "require_reference_contract": true
     },
     {
+      "skill": "workflow-cell-count-viability",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "workflow-nucleic-acid-quant-purity",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "workflow-dissolution-profile-f2",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "workflow-ddpcr-absolute-quantification",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
+      "skill": "workflow-bland-altman-agreement",
+      "minimum_maturity": "L4",
+      "required_roles": [
+        "conductor",
+        "analyzer"
+      ],
+      "require_reference_contract": true
+    },
+    {
       "skill": "codex-science",
       "minimum_maturity": "L3",
       "required_roles": [

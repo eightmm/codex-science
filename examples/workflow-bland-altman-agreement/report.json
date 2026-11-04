@@ -1,0 +1,94 @@
+{
+  "agreement_measure": "limits-of-agreement",
+  "claims": [
+    {
+      "evidence": [],
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "text": "Independent evidence remains unavailable for this synthetic fixture."
+    }
+  ],
+  "difference_definition": "A - B",
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "headline": "Synthetic paired-method arithmetic only.",
+  "maximum_allowed_difference": 6,
+  "rules_sha256": "fb27155471a7f103063a4aff05dcd34ef501b0efe8d8f3e7764e88f0a2f9908b",
+  "scale": "original",
+  "schema": "ba-report-v1",
+  "summary": {
+    "bias": 2.0,
+    "intervals": "unavailable",
+    "limits_within_bound": true,
+    "lower_limit": -0.7718585822512662,
+    "n": 6,
+    "normality": {
+      "excess_kurtosis": -1.583333333333334,
+      "screen": "passed",
+      "skewness": 0.0
+    },
+    "proportional_bias": {
+      "degrees_of_freedom": 4,
+      "method": "exact-t-regression",
+      "p_value": 0.0004459536647407959,
+      "screen": "detected",
+      "slope": 0.07428571428571429,
+      "t": 10.61445555206044
+    },
+    "sd_difference": 1.4142135623730951,
+    "unavailable": 1,
+    "upper_limit": 4.771858582251266
+  },
+  "units": [
+    {
+      "difference": 0.0,
+      "mean": 10.0,
+      "replicate_count": 1,
+      "status": "included",
+      "unit_id": "u01"
+    },
+    {
+      "difference": 1.0,
+      "mean": 20.0,
+      "replicate_count": 1,
+      "status": "included",
+      "unit_id": "u02"
+    },
+    {
+      "difference": 2.0,
+      "mean": 30.0,
+      "replicate_count": 1,
+      "status": "included",
+      "unit_id": "u03"
+    },
+    {
+      "difference": 2.0,
+      "mean": 40.0,
+      "replicate_count": 1,
+      "status": "included",
+      "unit_id": "u04"
+    },
+    {
+      "difference": 3.0,
+      "mean": 50.0,
+      "replicate_count": 1,
+      "status": "included",
+      "unit_id": "u05"
+    },
+    {
+      "difference": 4.0,
+      "mean": 60.0,
+      "replicate_count": 1,
+      "status": "included",
+      "unit_id": "u06"
+    },
+    {
+      "difference": "unavailable",
+      "mean": "unavailable",
+      "replicate_count": 0,
+      "status": "unavailable",
+      "unit_id": "u-missing"
+    }
+  ]
+}

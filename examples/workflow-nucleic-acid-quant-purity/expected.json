@@ -1,0 +1,85 @@
+{
+  "computation": {
+    "samples": [
+      {
+        "a260_a230": 2.0,
+        "a260_a280": 2.0,
+        "analyte": "dsDNA",
+        "classification": "quantified",
+        "concentration_ng_ul": 400.0,
+        "flags": [],
+        "replicate_relative_difference": 0.0,
+        "replicates": [
+          {
+            "a260_a230": 2.0,
+            "a260_a280": 2.0,
+            "concentration_ng_ul": 400.0,
+            "corrected": {
+              "A230": 0.2,
+              "A260": 0.4,
+              "A280": 0.2
+            },
+            "flags": [],
+            "replicate_id": "dna-1"
+          },
+          {
+            "a260_a230": 2.0,
+            "a260_a280": 2.0,
+            "concentration_ng_ul": 400.0,
+            "corrected": {
+              "A230": 0.2,
+              "A260": 0.4,
+              "A280": 0.2
+            },
+            "flags": [],
+            "replicate_id": "dna-2"
+          }
+        ],
+        "sample_id": "dna-fixture"
+      },
+      {
+        "a260_a230": 2.0000000000000004,
+        "a260_a280": 2.0,
+        "analyte": "RNA",
+        "classification": "quantified",
+        "concentration_ng_ul": 200.0,
+        "flags": [],
+        "replicate_relative_difference": 0.0,
+        "replicates": [
+          {
+            "a260_a230": 2.0000000000000004,
+            "a260_a280": 2.0,
+            "concentration_ng_ul": 200.0,
+            "corrected": {
+              "A230": 0.24999999999999997,
+              "A260": 0.5,
+              "A280": 0.25
+            },
+            "flags": [],
+            "replicate_id": "rna-1"
+          },
+          {
+            "a260_a230": 2.0000000000000004,
+            "a260_a280": 2.0,
+            "concentration_ng_ul": 200.0,
+            "corrected": {
+              "A230": 0.24999999999999997,
+              "A260": 0.5,
+              "A280": 0.25
+            },
+            "flags": [],
+            "replicate_id": "rna-2"
+          }
+        ],
+        "sample_id": "rna-fixture"
+      }
+    ],
+    "summary": {
+      "flagged": 0,
+      "n": 2,
+      "quantified": 2,
+      "unavailable": 0
+    }
+  },
+  "fixture": "synthetic fixture"
+}

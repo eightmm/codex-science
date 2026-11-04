@@ -1,0 +1,56 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-bland-altman-agreement/pack.json",
+    "examples/workflow-bland-altman-agreement/expected.json",
+    "examples/workflow-bland-altman-agreement/interval-pack.json",
+    "examples/workflow-bland-altman-agreement/log-pack.json",
+    "examples/workflow-bland-altman-agreement/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 is offline synthetic fixture acceptance only; no physical, clinical or method validity is established.",
+    "The 1986 t intervals use approximate limit variance 3s squared/n under independent normal differences; the moment screen does not establish normality or constant variance.",
+    "The exact t tail describes a model-based linear-regression test, not an assumption-free test. A nonsignificant test cannot establish absent proportional bias.",
+    "Natural-log inputs require positive measurements. Replicates collapse on the original scale before transformation and never increase independent n.",
+    "Hashes cannot establish historical freeze timing or true source independence. The pack always leaves independent review unavailable.",
+    "Conservative case-insensitive English whole-word/prefix families: caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Also truth, physical validity, patient benefit, interchange*, equivalen* and method valid*. Any correlat* headline/claim wording is refused. The gate includes negations and is incomplete.",
+    "Unavailable evidence requires unavailable claims. Computation and review approval never support positive claims; one synthetic fixture never establishes replication.",
+    "Read-only inputs are bounded to 64 MiB each, 256 MiB aggregate and 4000000 JSON values; hardlink aliases share initial reads and parsing."
+  ],
+  "output_schemas": [
+    "ba-pack-v1",
+    "ba-rules-v1",
+    "ba-pairs-v1",
+    "ba-report-v1",
+    "ba-evidence-v1",
+    "ba-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "correlation-as-agreement",
+    "wrong-log-scale",
+    "repeated-measures",
+    "missing-interval",
+    "too-few-interval",
+    "ignored-proportional-bias",
+    "unpaired-unit",
+    "post-hoc-bound",
+    "unfrozen-rules",
+    "overreach-interchangeability",
+    "overreach-clinical-acceptability",
+    "overreach-equivalence",
+    "overreach-method-validity",
+    "overreach-causality",
+    "overreach-physical-validity",
+    "overreach-truth",
+    "correlation-text"
+  ],
+  "skill": "workflow-bland-altman-agreement",
+  "test_files": [
+    "tests/test_workflow_ba_pack.py"
+  ]
+}

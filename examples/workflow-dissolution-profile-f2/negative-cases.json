@@ -1,0 +1,329 @@
+{
+  "cases": [
+    {
+      "finding": "multiple-late-points",
+      "id": "multiple-late-points",
+      "path": [
+        "selected_time_points"
+      ],
+      "remove": false,
+      "target": "rules",
+      "value": [
+        5,
+        10,
+        15,
+        20,
+        30
+      ]
+    },
+    {
+      "finding": "time-zero",
+      "id": "time-zero",
+      "path": [
+        "selected_time_points"
+      ],
+      "remove": false,
+      "target": "rules",
+      "value": [
+        0,
+        5,
+        10,
+        15
+      ]
+    },
+    {
+      "finding": "cv-status",
+      "id": "cv-ignored",
+      "path": [
+        "products",
+        0,
+        "units",
+        0,
+        "percentages",
+        2
+      ],
+      "remove": false,
+      "target": "profiles",
+      "value": 90
+    },
+    {
+      "finding": "unequal-time-points",
+      "id": "unequal-times",
+      "path": [
+        "products",
+        1,
+        "time_points"
+      ],
+      "remove": false,
+      "target": "profiles",
+      "value": [
+        0,
+        5,
+        10,
+        15,
+        20,
+        31
+      ]
+    },
+    {
+      "finding": "insufficient-units",
+      "id": "fewer-frozen-units",
+      "path": [
+        "products",
+        0,
+        "units"
+      ],
+      "remove": false,
+      "target": "profiles",
+      "value": [
+        {
+          "percentages": [
+            0,
+            19,
+            39,
+            59,
+            89,
+            94
+          ],
+          "unit_id": "reference-1"
+        },
+        {
+          "percentages": [
+            0,
+            21,
+            41,
+            61,
+            91,
+            96
+          ],
+          "unit_id": "reference-2"
+        },
+        {
+          "percentages": [
+            0,
+            19,
+            39,
+            59,
+            89,
+            94
+          ],
+          "unit_id": "reference-3"
+        },
+        {
+          "percentages": [
+            0,
+            21,
+            41,
+            61,
+            91,
+            96
+          ],
+          "unit_id": "reference-4"
+        },
+        {
+          "percentages": [
+            0,
+            19,
+            39,
+            59,
+            89,
+            94
+          ],
+          "unit_id": "reference-5"
+        },
+        {
+          "percentages": [
+            0,
+            21,
+            41,
+            61,
+            91,
+            96
+          ],
+          "unit_id": "reference-6"
+        },
+        {
+          "percentages": [
+            0,
+            19,
+            39,
+            59,
+            89,
+            94
+          ],
+          "unit_id": "reference-7"
+        },
+        {
+          "percentages": [
+            0,
+            21,
+            41,
+            61,
+            91,
+            96
+          ],
+          "unit_id": "reference-8"
+        },
+        {
+          "percentages": [
+            0,
+            19,
+            39,
+            59,
+            89,
+            94
+          ],
+          "unit_id": "reference-9"
+        },
+        {
+          "percentages": [
+            0,
+            21,
+            41,
+            61,
+            91,
+            96
+          ],
+          "unit_id": "reference-10"
+        },
+        {
+          "percentages": [
+            0,
+            19,
+            39,
+            59,
+            89,
+            94
+          ],
+          "unit_id": "reference-11"
+        }
+      ]
+    },
+    {
+      "finding": "reported-number",
+      "id": "unit-values-factor",
+      "path": [
+        "computation",
+        "f2"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": 78.87254899964358
+    },
+    {
+      "finding": "post-hoc-selection",
+      "id": "post-hoc-selection",
+      "path": [
+        "selected_time_points"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": [
+        5,
+        10,
+        15
+      ]
+    },
+    {
+      "finding": "rule-freeze",
+      "id": "unfrozen-rules",
+      "path": [
+        "frozen_before_percentages_read"
+      ],
+      "remove": false,
+      "target": "pack",
+      "value": false
+    },
+    {
+      "finding": "mean-rule",
+      "id": "unit-averaging-rule",
+      "path": [
+        "averaging_rule"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "unit-pairs"
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-bioequivalence",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic bioequivalence"
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-interchangeability",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic interchangeability"
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-product-quality",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic product quality"
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-regulatory-acceptance",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic regulatory acceptance"
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-clinical-relevance",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic clinical relevance"
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-causality",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic causality"
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-physical-validity",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic physical validity"
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-truth",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic truth"
+    }
+  ],
+  "fixture": "synthetic fixture"
+}

@@ -1,0 +1,19 @@
+{
+  "counts": {
+    "path": "counts.json",
+    "sha256": "14b3e5f889e0e70fb4f44ba4b362a87d1ce4b1879753e4203e34340b8c036cc1"
+  },
+  "evidence": [],
+  "fixture": "synthetic fixture",
+  "frozen_before_counts_read": true,
+  "frozen_rules_sha256": "7ca68390c075923e60931562ae16d757168579232544135fe4cc2f2f69eb1bc5",
+  "report": {
+    "path": "report.json",
+    "sha256": "0d9745b3f65e3cf576b9b632a6c2903710a4af114ae4e192562e6fa83aff8eac"
+  },
+  "rules": {
+    "path": "rules.json",
+    "sha256": "7ca68390c075923e60931562ae16d757168579232544135fe4cc2f2f69eb1bc5"
+  },
+  "schema": "ddpcr-pack-v1"
+}

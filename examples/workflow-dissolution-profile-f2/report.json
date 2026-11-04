@@ -1,0 +1,116 @@
+{
+  "averaging_rule": "product-means-per-time-point",
+  "claims": [
+    {
+      "evidence": [],
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "text": "Independent evidence remains unavailable for this synthetic fixture."
+    }
+  ],
+  "computation": {
+    "cv_controls": [
+      {
+        "cv": 5.222329678670935,
+        "limit": 20,
+        "passed": true,
+        "product_id": "reference",
+        "time_point": 5
+      },
+      {
+        "cv": 2.6111648393354674,
+        "limit": 10,
+        "passed": true,
+        "product_id": "reference",
+        "time_point": 10
+      },
+      {
+        "cv": 1.7407765595569782,
+        "limit": 10,
+        "passed": true,
+        "product_id": "reference",
+        "time_point": 15
+      },
+      {
+        "cv": 1.1605177063713188,
+        "limit": 10,
+        "passed": true,
+        "product_id": "reference",
+        "time_point": 20
+      },
+      {
+        "cv": 4.747572435155395,
+        "limit": 20,
+        "passed": true,
+        "product_id": "test",
+        "time_point": 5
+      },
+      {
+        "cv": 2.486823656509969,
+        "limit": 10,
+        "passed": true,
+        "product_id": "test",
+        "time_point": 10
+      },
+      {
+        "cv": 1.6846224769906242,
+        "limit": 10,
+        "passed": true,
+        "product_id": "test",
+        "time_point": 15
+      },
+      {
+        "cv": 1.135289060580638,
+        "limit": 10,
+        "passed": true,
+        "product_id": "test",
+        "time_point": 20
+      }
+    ],
+    "f1": 3.8095238095238093,
+    "f2": 82.52574989159953,
+    "f2_status": "computed",
+    "means": {
+      "reference": [
+        20.0,
+        40.0,
+        60.0,
+        90.0
+      ],
+      "test": [
+        22.0,
+        42.0,
+        62.0,
+        92.0
+      ]
+    },
+    "selected_time_points": [
+      5,
+      10,
+      15,
+      20
+    ],
+    "summary": {
+      "failed_cv_controls": 0,
+      "late_points": 1,
+      "selected_points": 4
+    },
+    "threshold_result": "at-or-above-50",
+    "unit_counts": {
+      "reference": 12,
+      "test": 12
+    }
+  },
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "headline": "Synthetic fixture f1 and f2 arithmetic.",
+  "rules_sha256": "8e91011609d475b832b69ad7822d44b5f7db1b09d4c21f26d7ca331310c7d8f1",
+  "schema": "dissolution-report-v1",
+  "selected_time_points": [
+    5,
+    10,
+    15,
+    20
+  ]
+}

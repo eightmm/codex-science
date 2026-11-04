@@ -1,0 +1,4 @@
+interface:
+  display_name: "Bland–Altman Agreement"
+  short_description: "Check paired differences, frozen limits, t intervals and bias screens"
+  default_prompt: "Use $workflow-bland-altman-agreement to freeze paired-unit rules, check supplied synthetic measurements, recompute bias and limits with intervals and proportional-bias screens, and hand bounded artifacts to independent review."

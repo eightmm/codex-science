@@ -1,0 +1,41 @@
+{
+  "fixture": "synthetic fixture",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "A has 32 live and 8 dead cells across four squares: 10 times 2 times 2 times 10000 gives 400000 cells/mL.",
+        "Report Poisson standard error and exact Clopper-Pearson viability bounds for 32/40.",
+        "B retains four observed cells but concentration and viability remain unavailable.",
+        "Sample n is 2 and independent review stays unavailable."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu_hours": 0,
+        "network_calls": 0
+      },
+      "id": "frozen-cell-counts",
+      "inputs": [
+        "examples/workflow-cell-count-viability/pack.json"
+      ],
+      "question": "What concentration and exact live-fraction bounds follow from the synthetic frozen chamber table?"
+    },
+    {
+      "acceptance_criteria": [
+        "Exercise every mutation independently through the public validator.",
+        "Boundary and evidence findings precede later arithmetic failures.",
+        "All CLI refusals, including argument errors, are JSON with finding on stderr and exit 2."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_hours": 0,
+        "network_calls": 0
+      },
+      "id": "seeded-cell-refusals",
+      "inputs": [
+        "examples/workflow-cell-count-viability/negative-cases.json"
+      ],
+      "question": "Does each synthetic negative case refuse for its stated reason without writing files?"
+    }
+  ]
+}

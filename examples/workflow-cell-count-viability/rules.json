@@ -1,0 +1,47 @@
+{
+  "chambers": [
+    {
+      "chamber_id": "A1",
+      "counter_id": "counter-A1",
+      "sample_id": "A"
+    },
+    {
+      "chamber_id": "A2",
+      "counter_id": "counter-A2",
+      "sample_id": "A"
+    },
+    {
+      "chamber_id": "B1",
+      "counter_id": "counter-B1",
+      "sample_id": "B"
+    },
+    {
+      "chamber_id": "B2",
+      "counter_id": "counter-B2",
+      "sample_id": "B"
+    }
+  ],
+  "dilution_factor": 2,
+  "fixture": "synthetic fixture",
+  "interval_level": 0.95,
+  "interval_method": "clopper-pearson-exact",
+  "maximum_disagreement": 0.25,
+  "maximum_per_square": 50,
+  "minimum_per_square": 5,
+  "minimum_total_cells": 20,
+  "mixing_ratio": {
+    "dye_parts": 1,
+    "sample_parts": 1
+  },
+  "sample_ids": [
+    "A",
+    "B"
+  ],
+  "schema": "cell-rules-v1",
+  "square_ids": [
+    "s1",
+    "s2"
+  ],
+  "viability_definition": "live/(live+dead)",
+  "volume_ml": 0.0001
+}

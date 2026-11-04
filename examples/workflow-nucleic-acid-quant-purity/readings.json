@@ -1,0 +1,59 @@
+{
+  "blank": {
+    "reading": {
+      "A230": 0.03,
+      "A260": 0.04,
+      "A280": 0.02,
+      "A320": 0.01,
+      "availability": "observed",
+      "replicate_id": "blank-1"
+    },
+    "sample_id": "blank-fixture"
+  },
+  "fixture": "synthetic fixture",
+  "samples": [
+    {
+      "replicates": [
+        {
+          "A230": 0.24,
+          "A260": 0.45,
+          "A280": 0.23,
+          "A320": 0.02,
+          "availability": "observed",
+          "replicate_id": "dna-1"
+        },
+        {
+          "A230": 0.24,
+          "A260": 0.45,
+          "A280": 0.23,
+          "A320": 0.02,
+          "availability": "observed",
+          "replicate_id": "dna-2"
+        }
+      ],
+      "sample_id": "dna-fixture"
+    },
+    {
+      "replicates": [
+        {
+          "A230": 0.29,
+          "A260": 0.55,
+          "A280": 0.28,
+          "A320": 0.02,
+          "availability": "observed",
+          "replicate_id": "rna-1"
+        },
+        {
+          "A230": 0.29,
+          "A260": 0.55,
+          "A280": 0.28,
+          "A320": 0.02,
+          "availability": "observed",
+          "replicate_id": "rna-2"
+        }
+      ],
+      "sample_id": "rna-fixture"
+    }
+  ],
+  "schema": "nuc-readings-v1"
+}

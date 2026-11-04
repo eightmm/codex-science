@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze square/chamber identities, volume, dilution, mixing, countability, minimum cells, agreement and exact interval before counts.",
+      "id": "01-rule-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Admit immutable synthetic counts and preserve clumping, missingness, identities and exposure controls.",
+      "id": "02-count-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Compute only complete eligible samples, refuse disagreeing chambers and report Poisson uncertainty and exact binomial bounds.",
+      "id": "03-concentration-viability",
+      "status": "pending"
+    },
+    {
+      "description": "Preserve raw counts, exclusions, sample denominators, uncertainty, failures and unavailable results.",
+      "id": "04-summary",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary domain artifacts and separate claims for coordinator-owned independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

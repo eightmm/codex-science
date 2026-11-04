@@ -1,0 +1,120 @@
+{
+  "background_rule": "subtract-A320",
+  "blank_rule": "subtract-background-corrected-blank",
+  "claims": [
+    {
+      "evidence": [],
+      "id": "C1",
+      "kind": "descriptive",
+      "status": "unavailable",
+      "text": "Independent evidence remains unavailable for this synthetic fixture."
+    }
+  ],
+  "exploratory": false,
+  "fixture": "synthetic fixture",
+  "headline": "Synthetic fixture absorbance arithmetic only.",
+  "purity_bands": {
+    "RNA": {
+      "a260_a230": {
+        "maximum": 2.3,
+        "minimum": 1.8
+      },
+      "a260_a280": {
+        "maximum": 2.2,
+        "minimum": 1.8
+      }
+    },
+    "dsDNA": {
+      "a260_a230": {
+        "maximum": 2.3,
+        "minimum": 1.8
+      },
+      "a260_a280": {
+        "maximum": 2.1,
+        "minimum": 1.7
+      }
+    }
+  },
+  "rules_sha256": "a3e9a7f2027df5c4c2fac62a18b3a48ea2504959dfa2e6927ff84db78fc8ad38",
+  "samples": [
+    {
+      "a260_a230": 2.0,
+      "a260_a280": 2.0,
+      "analyte": "dsDNA",
+      "classification": "quantified",
+      "concentration_ng_ul": 400.0,
+      "flags": [],
+      "replicate_relative_difference": 0.0,
+      "replicates": [
+        {
+          "a260_a230": 2.0,
+          "a260_a280": 2.0,
+          "concentration_ng_ul": 400.0,
+          "corrected": {
+            "A230": 0.2,
+            "A260": 0.4,
+            "A280": 0.2
+          },
+          "flags": [],
+          "replicate_id": "dna-1"
+        },
+        {
+          "a260_a230": 2.0,
+          "a260_a280": 2.0,
+          "concentration_ng_ul": 400.0,
+          "corrected": {
+            "A230": 0.2,
+            "A260": 0.4,
+            "A280": 0.2
+          },
+          "flags": [],
+          "replicate_id": "dna-2"
+        }
+      ],
+      "sample_id": "dna-fixture"
+    },
+    {
+      "a260_a230": 2.0000000000000004,
+      "a260_a280": 2.0,
+      "analyte": "RNA",
+      "classification": "quantified",
+      "concentration_ng_ul": 200.0,
+      "flags": [],
+      "replicate_relative_difference": 0.0,
+      "replicates": [
+        {
+          "a260_a230": 2.0000000000000004,
+          "a260_a280": 2.0,
+          "concentration_ng_ul": 200.0,
+          "corrected": {
+            "A230": 0.24999999999999997,
+            "A260": 0.5,
+            "A280": 0.25
+          },
+          "flags": [],
+          "replicate_id": "rna-1"
+        },
+        {
+          "a260_a230": 2.0000000000000004,
+          "a260_a280": 2.0,
+          "concentration_ng_ul": 200.0,
+          "corrected": {
+            "A230": 0.24999999999999997,
+            "A260": 0.5,
+            "A280": 0.25
+          },
+          "flags": [],
+          "replicate_id": "rna-2"
+        }
+      ],
+      "sample_id": "rna-fixture"
+    }
+  ],
+  "schema": "nuc-report-v1",
+  "summary": {
+    "flagged": 0,
+    "n": 2,
+    "quantified": 2,
+    "unavailable": 0
+  }
+}

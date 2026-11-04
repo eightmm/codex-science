@@ -1,0 +1,40 @@
+{
+  "fixture": "synthetic fixture",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Subtract A320 and the background-corrected blank before all arithmetic.",
+        "dsDNA 400 ng/\u00b5L, RNA 200 ng/\u00b5L; both purity ratios 2 within relative tolerance 1e-9.",
+        "Sample n 2; technical replicates never increase n. Independent review remains unavailable."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu_hours": 0,
+        "network_calls": 0
+      },
+      "id": "frozen-absorbance-arithmetic",
+      "inputs": [
+        "examples/workflow-nucleic-acid-quant-purity/pack.json"
+      ],
+      "question": "What concentration, ratios and flags follow from the frozen synthetic dsDNA and RNA fixture?"
+    },
+    {
+      "acceptance_criteria": [
+        "Every defect is tested independently through the public validator.",
+        "Boundary and evidence refusals precede later arithmetic errors.",
+        "Validator writes nothing; CLI argument and validation refusals are JSON on stderr with exit 2."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_hours": 0,
+        "network_calls": 0
+      },
+      "id": "seeded-refusals",
+      "inputs": [
+        "examples/workflow-nucleic-acid-quant-purity/negative-cases.json"
+      ],
+      "question": "Does every seeded synthetic defect refuse for its declared finding?"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze identities, analytes, conversion, path, dilution, blank, background, range, bands and replicates before readings.",
+      "id": "01-rule-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Admit immutable synthetic readings with unique identities and separate blank; preserve missing and negative results.",
+      "id": "02-reading-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Subtract background and blank, compute concentration and ratios, check relative singularity and replicate agreement.",
+      "id": "03-quant-purity",
+      "status": "pending"
+    },
+    {
+      "description": "Preserve every sample, flag, unavailable quantity and sample-level denominator.",
+      "id": "04-summary",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate claims for coordinator-owned independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

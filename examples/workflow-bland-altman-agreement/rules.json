@@ -1,0 +1,28 @@
+{
+  "difference_definition": "A - B",
+  "fixture": "synthetic fixture",
+  "interval_level": 0.95,
+  "interval_method": "bland-altman-1986-t",
+  "interval_minimum_pairs": 30,
+  "loa_multiplier": 1.96,
+  "maximum_allowed_difference": 6,
+  "minimum_pairs": 3,
+  "normality_max_abs_excess_kurtosis": 2,
+  "normality_max_abs_skewness": 1,
+  "proportional_bias_alpha": 0.05,
+  "proportional_bias_method": "exact-t-regression",
+  "reference_method": "B",
+  "replicate_rule": "one-pair-per-unit",
+  "scale": "original",
+  "schema": "ba-rules-v1",
+  "unit_ids": [
+    "u01",
+    "u02",
+    "u03",
+    "u04",
+    "u05",
+    "u06",
+    "u-missing"
+  ],
+  "units": "synthetic-unit"
+}

@@ -1,0 +1,56 @@
+{
+  "background_rule": "subtract-A320",
+  "blank_id": "blank-fixture",
+  "blank_rule": "subtract-background-corrected-blank",
+  "fixture": "synthetic fixture",
+  "linear_a260_range": {
+    "maximum": 1,
+    "minimum": 0.01
+  },
+  "minimum_replicates": 2,
+  "path_length_cm": 0.5,
+  "purity_bands": {
+    "RNA": {
+      "a260_a230": {
+        "maximum": 2.3,
+        "minimum": 1.8
+      },
+      "a260_a280": {
+        "maximum": 2.2,
+        "minimum": 1.8
+      }
+    },
+    "dsDNA": {
+      "a260_a230": {
+        "maximum": 2.3,
+        "minimum": 1.8
+      },
+      "a260_a280": {
+        "maximum": 2.1,
+        "minimum": 1.7
+      }
+    }
+  },
+  "replicate_max_relative_difference": 0.1,
+  "samples": [
+    {
+      "analyte": "dsDNA",
+      "conversion_factor_ng_ul": 50,
+      "dilution_factor": 10,
+      "sample_id": "dna-fixture"
+    },
+    {
+      "analyte": "RNA",
+      "conversion_factor_ng_ul": 40,
+      "dilution_factor": 5,
+      "sample_id": "rna-fixture"
+    }
+  ],
+  "schema": "nuc-rules-v1",
+  "wavelengths": [
+    "A230",
+    "A260",
+    "A280",
+    "A320"
+  ]
+}

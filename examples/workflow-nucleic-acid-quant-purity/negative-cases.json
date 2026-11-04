@@ -1,0 +1,258 @@
+{
+  "cases": [
+    {
+      "finding": "background-rule",
+      "id": "background-omitted",
+      "path": [
+        "background_rule"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "none"
+    },
+    {
+      "finding": "reported-number",
+      "id": "background-numeric",
+      "path": [
+        "samples",
+        0,
+        "concentration_ng_ul"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": 420
+    },
+    {
+      "finding": "conversion-factor",
+      "id": "wrong-analyte-factor",
+      "path": [
+        "samples",
+        0,
+        "conversion_factor_ng_ul"
+      ],
+      "remove": false,
+      "target": "rules",
+      "value": 40
+    },
+    {
+      "finding": "unavailable-quantification",
+      "id": "zero-denominator",
+      "path": [
+        "samples",
+        0,
+        "replicates",
+        0,
+        "A280"
+      ],
+      "remove": false,
+      "target": "readings",
+      "value": 0.03
+    },
+    {
+      "finding": "unavailable-quantification",
+      "id": "negative-denominator",
+      "path": [
+        "samples",
+        0,
+        "replicates",
+        0,
+        "A280"
+      ],
+      "remove": false,
+      "target": "readings",
+      "value": 0.02
+    },
+    {
+      "finding": "unavailable-quantification",
+      "id": "negative-blank-subtracted",
+      "path": [
+        "samples",
+        0,
+        "replicates",
+        0,
+        "A230"
+      ],
+      "remove": false,
+      "target": "readings",
+      "value": 0.01
+    },
+    {
+      "finding": "unavailable-quantification",
+      "id": "outside-linear-quantified",
+      "path": [
+        "samples",
+        0,
+        "replicates",
+        0,
+        "A260"
+      ],
+      "remove": false,
+      "target": "readings",
+      "value": 2.05
+    },
+    {
+      "finding": "blank-mixed",
+      "id": "blank-mixed",
+      "path": [
+        "samples",
+        0,
+        "sample_id"
+      ],
+      "remove": false,
+      "target": "readings",
+      "value": "blank-fixture"
+    },
+    {
+      "finding": "blank-control",
+      "id": "missing-blank",
+      "path": [
+        "blank"
+      ],
+      "remove": true,
+      "target": "readings",
+      "value": null
+    },
+    {
+      "finding": "reported-number",
+      "id": "dilution-ignored",
+      "path": [
+        "samples",
+        0,
+        "concentration_ng_ul"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": 40
+    },
+    {
+      "finding": "reported-number",
+      "id": "path-scaling-ignored",
+      "path": [
+        "samples",
+        0,
+        "concentration_ng_ul"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": 200
+    },
+    {
+      "finding": "post-hoc-bands",
+      "id": "bands-relaxed",
+      "path": [
+        "purity_bands",
+        "dsDNA",
+        "a260_a280",
+        "maximum"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": 3
+    },
+    {
+      "finding": "replicate-disagreement",
+      "id": "discordant-replicates",
+      "path": [
+        "samples",
+        0,
+        "replicates",
+        0,
+        "A260"
+      ],
+      "remove": false,
+      "target": "readings",
+      "value": 0.55
+    },
+    {
+      "finding": "rule-freeze",
+      "id": "unfrozen-rules",
+      "path": [
+        "frozen_before_readings_read"
+      ],
+      "remove": false,
+      "target": "pack",
+      "value": false
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-quality",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic quality established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-suitability",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic suitability established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-sequencing",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic sequencing established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-cloning",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic cloning established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-pcr",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic PCR established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-downstream-use",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic downstream use established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-causality",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic causality established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-physical-validity",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic physical validity established."
+    }
+  ],
+  "fixture": "synthetic fixture"
+}

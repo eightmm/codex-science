@@ -1,0 +1,236 @@
+{
+  "cases": [
+    {
+      "finding": "singular-positive-fraction",
+      "id": "log-of-zero",
+      "path": [
+        "rows",
+        0,
+        "positive"
+      ],
+      "remove": false,
+      "target": "counts",
+      "value": 4
+    },
+    {
+      "finding": "partition-count",
+      "id": "positive-exceeds-total",
+      "path": [
+        "rows",
+        0,
+        "positive"
+      ],
+      "remove": false,
+      "target": "counts",
+      "value": 5
+    },
+    {
+      "finding": "ntc-contamination",
+      "id": "ntc-contamination-ignored",
+      "path": [
+        "rows",
+        4,
+        "positive"
+      ],
+      "remove": false,
+      "target": "counts",
+      "value": 1
+    },
+    {
+      "finding": "saturated-well",
+      "id": "saturated-quantified",
+      "path": [
+        "rows",
+        0,
+        "positive"
+      ],
+      "remove": false,
+      "target": "counts",
+      "value": 3
+    },
+    {
+      "finding": "insufficient-partitions",
+      "id": "too-few-partitions",
+      "path": [
+        "rows",
+        0,
+        "total"
+      ],
+      "remove": false,
+      "target": "counts",
+      "value": 3
+    },
+    {
+      "finding": "poisson-correction",
+      "id": "poisson-correction-omitted",
+      "path": [
+        "wells",
+        0,
+        "lambda"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": 0.5
+    },
+    {
+      "finding": "binomial-interval",
+      "id": "normal-interval",
+      "path": [
+        "interval_method"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "normal-approximation"
+    },
+    {
+      "finding": "replicate-disagreement",
+      "id": "discordant-replicates-pooled",
+      "path": [
+        "rows",
+        1,
+        "positive"
+      ],
+      "refresh_wells": true,
+      "remove": false,
+      "target": "counts",
+      "value": 1
+    },
+    {
+      "finding": "concentration-scaling",
+      "id": "dilution-scaling-ignored",
+      "path": [
+        "samples",
+        0,
+        "concentration_copies_per_ul"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": 1.3862943611198906
+    },
+    {
+      "finding": "post-hoc-threshold",
+      "id": "post-outcome-threshold",
+      "path": [
+        "thresholds",
+        "saturation_bound"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": 0.6
+    },
+    {
+      "finding": "rule-freeze",
+      "id": "unfrozen-rules",
+      "path": [
+        "frozen_before_counts_read"
+      ],
+      "remove": false,
+      "target": "pack",
+      "value": false
+    },
+    {
+      "finding": "missing-ntc",
+      "id": "missing-ntc",
+      "path": [
+        "rows"
+      ],
+      "remove": false,
+      "target": "counts",
+      "value": [
+        {
+          "flag": "observed",
+          "positive": 2,
+          "role": "sample",
+          "sample_id": "A",
+          "total": 4,
+          "well_id": "a1"
+        },
+        {
+          "flag": "observed",
+          "positive": 2,
+          "role": "sample",
+          "sample_id": "A",
+          "total": 4,
+          "well_id": "a2"
+        },
+        {
+          "flag": "observed",
+          "positive": 0,
+          "role": "sample",
+          "sample_id": "Z",
+          "total": 4,
+          "well_id": "z1"
+        },
+        {
+          "flag": "observed",
+          "positive": 0,
+          "role": "sample",
+          "sample_id": "Z",
+          "total": 4,
+          "well_id": "z2"
+        }
+      ]
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-copy-number",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic copy-number state established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-gene-dosage",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic gene dosage established."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-disease",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic disease implication."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-clinical-relevance",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic clinical relevance."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-causality",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic association causes an outcome."
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-physical-validity",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic physical validity established."
+    }
+  ],
+  "fixture": "synthetic fixture"
+}

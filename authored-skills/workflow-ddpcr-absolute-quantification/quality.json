@@ -1,0 +1,53 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-ddpcr-absolute-quantification/pack.json",
+    "examples/workflow-ddpcr-absolute-quantification/expected.json",
+    "examples/workflow-ddpcr-absolute-quantification/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 denotes offline synthetic fixture acceptance only, never assay, physical or clinical validity.",
+    "Independent equal-volume partitions and accurate readout, volume, dilution and reaction-to-sample multipliers are unverified assumptions. Exact intervals exclude their uncertainty and post-selection effects.",
+    "NTC failures, saturation, inadequate partitions and missing counts preserve unavailable concentration. Zero positives have a positive exact upper bound and never establish absence.",
+    "Hashes cannot prove historical freeze timing or true source independence. Review always remains unavailable; computed agreement and review approval never support positive claims. One fixture cannot establish replication.",
+    "Conservative case-insensitive English whole-word/prefix families: caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Also truth, physical validity, patient benefit, copy-number, gene dosage, disease* and sample suitability. The gate includes negations and is incomplete.",
+    "Read-only inputs are bounded to 64 MiB each, 256 MiB aggregate and 4000000 JSON values; hardlink aliases share initial reads and parsing."
+  ],
+  "output_schemas": [
+    "ddpcr-pack-v1",
+    "ddpcr-rules-v1",
+    "ddpcr-counts-v1",
+    "ddpcr-report-v1",
+    "ddpcr-evidence-v1",
+    "ddpcr-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "log-of-zero",
+    "positive-exceeds-total",
+    "ntc-contamination-ignored",
+    "saturated-quantified",
+    "too-few-partitions",
+    "poisson-correction-omitted",
+    "normal-interval",
+    "discordant-replicates-pooled",
+    "dilution-scaling-ignored",
+    "post-outcome-threshold",
+    "unfrozen-rules",
+    "missing-ntc",
+    "overreach-copy-number",
+    "overreach-gene-dosage",
+    "overreach-disease",
+    "overreach-clinical-relevance",
+    "overreach-causality",
+    "overreach-physical-validity"
+  ],
+  "skill": "workflow-ddpcr-absolute-quantification",
+  "test_files": [
+    "tests/test_workflow_ddpcr_pack.py"
+  ]
+}

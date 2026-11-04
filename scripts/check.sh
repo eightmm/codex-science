@@ -133,6 +133,16 @@ run_science_contracts() (
     examples/workflow-arrhenius-rate-fit/pack.json >/dev/null
   uv run python scripts/validate_particle_size_distribution_pack.py \
     examples/workflow-particle-size-distribution/pack.json >/dev/null
+  uv run python scripts/validate_cell_count_viability_pack.py \
+    examples/workflow-cell-count-viability/pack.json >/dev/null
+  uv run python scripts/validate_nucleic_acid_quant_purity_pack.py \
+    examples/workflow-nucleic-acid-quant-purity/pack.json >/dev/null
+  uv run python scripts/validate_dissolution_profile_f2_pack.py \
+    examples/workflow-dissolution-profile-f2/pack.json >/dev/null
+  uv run python scripts/validate_ddpcr_absolute_quantification_pack.py \
+    examples/workflow-ddpcr-absolute-quantification/pack.json >/dev/null
+  uv run python scripts/validate_bland_altman_agreement_pack.py \
+    examples/workflow-bland-altman-agreement/pack.json >/dev/null
   uv run python scripts/validate_model_registry_v2.py >/dev/null
   echo "model registries: valid"
   uv run python scripts/run_reviewer_benchmark.py --output "$benchmark_tmp" --require-safe

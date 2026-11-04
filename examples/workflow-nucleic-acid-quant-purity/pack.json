@@ -1,0 +1,19 @@
+{
+  "evidence": [],
+  "fixture": "synthetic fixture",
+  "frozen_before_readings_read": true,
+  "frozen_rules_sha256": "a3e9a7f2027df5c4c2fac62a18b3a48ea2504959dfa2e6927ff84db78fc8ad38",
+  "readings": {
+    "path": "readings.json",
+    "sha256": "fb07363921e1e28aed3b1b4253b50e2a288fac396de983d15c17113113f99c98"
+  },
+  "report": {
+    "path": "report.json",
+    "sha256": "937f4a8627b45e158342f12b0cf00cb3e248609ffcdaed3baf6375b46ac97718"
+  },
+  "rules": {
+    "path": "rules.json",
+    "sha256": "a3e9a7f2027df5c4c2fac62a18b3a48ea2504959dfa2e6927ff84db78fc8ad38"
+  },
+  "schema": "nuc-pack-v1"
+}

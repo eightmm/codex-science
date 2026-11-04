@@ -1,0 +1,4 @@
+interface:
+  display_name: "Nucleic Acid Concentration and Purity Ratios"
+  short_description: "Check frozen absorbance arithmetic for synthetic dsDNA and RNA"
+  default_prompt: "Use $workflow-nucleic-acid-quant-purity to freeze absorbance rules, check synthetic dsDNA/RNA readings, compute bounded concentration and purity ratios, and hand artifacts to independent review."

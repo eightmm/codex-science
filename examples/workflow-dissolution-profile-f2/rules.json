@@ -1,0 +1,33 @@
+{
+  "averaging_rule": "product-means-per-time-point",
+  "f2_threshold": 50,
+  "first_cv_limit": 20,
+  "fixture": "synthetic fixture",
+  "late_percent_limit": 85,
+  "later_cv_limit": 10,
+  "maximum_late_points": 1,
+  "minimum_time_points": 3,
+  "product_ids": [
+    "reference",
+    "test"
+  ],
+  "schema": "dissolution-rules-v1",
+  "selected_time_points": [
+    5,
+    10,
+    15,
+    20
+  ],
+  "time_points": [
+    0,
+    5,
+    10,
+    15,
+    20,
+    30
+  ],
+  "units_per_product": {
+    "reference": 12,
+    "test": 12
+  }
+}

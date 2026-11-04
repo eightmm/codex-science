@@ -1,0 +1,42 @@
+{
+  "fixture": "synthetic fixture",
+  "schema_version": 1,
+  "tasks": [
+    {
+      "acceptance_criteria": [
+        "Two A wells each have 2/4 positives: pooled lambda ln(2), concentration 12 ln(2) copies per sample-equivalent uL.",
+        "Use transformed exact Clopper-Pearson bounds, never a normal approximation.",
+        "The zero-positive sample keeps a positive upper bound; sample n is 2, never technical well count.",
+        "Review remains unavailable and no biological or clinical claim is established."
+      ],
+      "budget": {
+        "cpu_seconds": 30,
+        "gpu_hours": 0,
+        "network_calls": 0
+      },
+      "id": "poisson-exact-concentration",
+      "inputs": [
+        "examples/workflow-ddpcr-absolute-quantification/pack.json"
+      ],
+      "question": "What concentration and exact bounds follow from the frozen synthetic partition counts?"
+    },
+    {
+      "acceptance_criteria": [
+        "Exercise every seeded defect through the public validator with fresh hash-bound identities.",
+        "Preserve failed NTCs, saturated or inadequate wells and disagreeing replicates as unavailable.",
+        "Boundary and evidence findings precede later arithmetic errors; every CLI refusal is JSON with exit 2.",
+        "No file writes, network, downloads or third-party dependencies."
+      ],
+      "budget": {
+        "cpu_seconds": 60,
+        "gpu_hours": 0,
+        "network_calls": 0
+      },
+      "id": "seeded-refusals",
+      "inputs": [
+        "examples/workflow-ddpcr-absolute-quantification/negative-cases.json"
+      ],
+      "question": "Does each synthetic mutation refuse for its stated finding?"
+    }
+  ]
+}

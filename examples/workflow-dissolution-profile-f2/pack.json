@@ -1,0 +1,19 @@
+{
+  "evidence": [],
+  "fixture": "synthetic fixture",
+  "frozen_before_percentages_read": true,
+  "frozen_rules_sha256": "8e91011609d475b832b69ad7822d44b5f7db1b09d4c21f26d7ca331310c7d8f1",
+  "profiles": {
+    "path": "profiles.json",
+    "sha256": "610f372c830f75f895290dc2d52713a63927f0b7569f2db33efe614fe8b60d2a"
+  },
+  "report": {
+    "path": "report.json",
+    "sha256": "467a52584b99d2f23dd00faf39806b81a572faae27b71cd3f4df1168e867d340"
+  },
+  "rules": {
+    "path": "rules.json",
+    "sha256": "8e91011609d475b832b69ad7822d44b5f7db1b09d4c21f26d7ca331310c7d8f1"
+  },
+  "schema": "dissolution-pack-v1"
+}

@@ -1,0 +1,46 @@
+{
+  "fixture": "synthetic fixture",
+  "rows": [
+    {
+      "flag": "observed",
+      "positive": 2,
+      "role": "sample",
+      "sample_id": "A",
+      "total": 4,
+      "well_id": "a1"
+    },
+    {
+      "flag": "observed",
+      "positive": 2,
+      "role": "sample",
+      "sample_id": "A",
+      "total": 4,
+      "well_id": "a2"
+    },
+    {
+      "flag": "observed",
+      "positive": 0,
+      "role": "sample",
+      "sample_id": "Z",
+      "total": 4,
+      "well_id": "z1"
+    },
+    {
+      "flag": "observed",
+      "positive": 0,
+      "role": "sample",
+      "sample_id": "Z",
+      "total": 4,
+      "well_id": "z2"
+    },
+    {
+      "flag": "observed",
+      "positive": 0,
+      "role": "ntc",
+      "sample_id": "NTC",
+      "total": 4,
+      "well_id": "n1"
+    }
+  ],
+  "schema": "ddpcr-counts-v1"
+}

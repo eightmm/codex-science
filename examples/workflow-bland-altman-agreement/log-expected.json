@@ -1,0 +1,72 @@
+{
+  "computation": {
+    "summary": {
+      "bias": 0.20000000000000015,
+      "intervals": "unavailable",
+      "limits_within_bound": true,
+      "lower_limit": -0.07718585822512689,
+      "n": 6,
+      "normality": {
+        "excess_kurtosis": -1.5833333333333366,
+        "screen": "passed",
+        "skewness": 6.938893903907228e-16
+      },
+      "proportional_bias": {
+        "degrees_of_freedom": 4,
+        "method": "exact-t-regression",
+        "p_value": 0.00044595366474079845,
+        "screen": "detected",
+        "slope": 0.07428571428571439,
+        "t": 10.61445555206042
+      },
+      "sd_difference": 0.14142135623730973,
+      "unavailable": 0,
+      "upper_limit": 0.47718585822512716
+    },
+    "units": [
+      {
+        "difference": 0.0,
+        "mean": 1.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u01"
+      },
+      {
+        "difference": 0.09999999999999987,
+        "mean": 2.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u02"
+      },
+      {
+        "difference": 0.20000000000000018,
+        "mean": 3.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u03"
+      },
+      {
+        "difference": 0.19999999999999973,
+        "mean": 4.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u04"
+      },
+      {
+        "difference": 0.3000000000000007,
+        "mean": 5.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u05"
+      },
+      {
+        "difference": 0.40000000000000036,
+        "mean": 6.0,
+        "replicate_count": 1,
+        "status": "included",
+        "unit_id": "u06"
+      }
+    ]
+  },
+  "fixture": "synthetic fixture"
+}

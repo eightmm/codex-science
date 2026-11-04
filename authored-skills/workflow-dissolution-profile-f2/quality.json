@@ -1,0 +1,52 @@
+{
+  "acceptance_fixtures": [
+    "examples/workflow-dissolution-profile-f2/pack.json",
+    "examples/workflow-dissolution-profile-f2/expected.json",
+    "examples/workflow-dissolution-profile-f2/negative-cases.json"
+  ],
+  "declared_maturity": "L4",
+  "limitations": [
+    "L4 is exercised offline synthetic arithmetic only, never bioequivalence, interchangeability, product quality, regulatory acceptance or clinical relevance.",
+    "CV and unit controls do not establish representative sampling, instrument accuracy, physical or clinical validity. Zero variance in a positive column is valid CV zero, never evidence.",
+    "Hashes cannot establish historical freeze timing or true source independence. Independent review remains unavailable.",
+    "Conservative case-insensitive English whole-word/prefix families: caus*, mechanis*, therap*, clinic*, efficac*, effective*, treat*, cure*, prevent*, recommend*, prescri*, bind*, affinit*, inhibit*, activat*, regulat*, drive/drives/driv*, induc*. Also truth, physical validity, patient benefit, bioequiv*, interchange*, product quality and accept*. The gate includes negations and is incomplete.",
+    "Unavailable evidence requires unavailable claims. Computed agreement and review approval never support positive claims; one synthetic fixture never establishes replication.",
+    "Inputs are read-only, bounded to 64 MiB each, 256 MiB aggregate and 4000000 JSON values; hardlink aliases share initial reads and parsing."
+  ],
+  "output_schemas": [
+    "dissolution-pack-v1",
+    "dissolution-rules-v1",
+    "dissolution-profiles-v1",
+    "dissolution-report-v1",
+    "dissolution-evidence-v1",
+    "dissolution-result-v1"
+  ],
+  "roles": [
+    "conductor",
+    "analyzer"
+  ],
+  "schema_version": 1,
+  "seeded_failures": [
+    "multiple-late-points",
+    "time-zero",
+    "cv-ignored",
+    "unequal-times",
+    "fewer-frozen-units",
+    "unit-values-factor",
+    "post-hoc-selection",
+    "unfrozen-rules",
+    "unit-averaging-rule",
+    "overreach-bioequivalence",
+    "overreach-interchangeability",
+    "overreach-product-quality",
+    "overreach-regulatory-acceptance",
+    "overreach-clinical-relevance",
+    "overreach-causality",
+    "overreach-physical-validity",
+    "overreach-truth"
+  ],
+  "skill": "workflow-dissolution-profile-f2",
+  "test_files": [
+    "tests/test_workflow_diss_pack.py"
+  ]
+}

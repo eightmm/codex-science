@@ -1,0 +1,45 @@
+{
+  "agreement_bound": 0.25,
+  "confidence_level": 0.95,
+  "dilution_factor": 2,
+  "fixture": "synthetic fixture",
+  "interval_method": "clopper-pearson-exact",
+  "minimum_accepted_partitions": 4,
+  "ntc_maximum_positive": 0,
+  "partition_volume_ul": 0.5,
+  "reaction_to_sample_scaling": 3,
+  "replicate_wells_per_sample": 2,
+  "sample_ids": [
+    "A",
+    "Z"
+  ],
+  "saturation_bound": 0.7,
+  "schema": "ddpcr-rules-v1",
+  "wells": [
+    {
+      "role": "sample",
+      "sample_id": "A",
+      "well_id": "a1"
+    },
+    {
+      "role": "sample",
+      "sample_id": "A",
+      "well_id": "a2"
+    },
+    {
+      "role": "sample",
+      "sample_id": "Z",
+      "well_id": "z1"
+    },
+    {
+      "role": "sample",
+      "sample_id": "Z",
+      "well_id": "z2"
+    },
+    {
+      "role": "ntc",
+      "sample_id": "NTC",
+      "well_id": "n1"
+    }
+  ]
+}

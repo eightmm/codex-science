@@ -1,0 +1,19 @@
+{
+  "evidence": [],
+  "fixture": "synthetic fixture",
+  "frozen_before_values_read": true,
+  "frozen_rules_sha256": "fb27155471a7f103063a4aff05dcd34ef501b0efe8d8f3e7764e88f0a2f9908b",
+  "pairs": {
+    "path": "pairs.json",
+    "sha256": "58c40f1ba2fe267f4bd4f7394ebd1af680331963540a5af33521c627aabe3831"
+  },
+  "report": {
+    "path": "report.json",
+    "sha256": "7fd45cb35b9c6169db5ea74d4b911c96ac7e490dc6131ca1b71aaedba42c88a1"
+  },
+  "rules": {
+    "path": "rules.json",
+    "sha256": "fb27155471a7f103063a4aff05dcd34ef501b0efe8d8f3e7764e88f0a2f9908b"
+  },
+  "schema": "ba-pack-v1"
+}

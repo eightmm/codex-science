@@ -1,0 +1,29 @@
+{
+  "plan": [
+    {
+      "description": "Freeze synthetic well identities, partition volume, controls, scaling, exact intervals and replicate agreement before counts.",
+      "id": "01-rule-freeze",
+      "status": "pending"
+    },
+    {
+      "description": "Admit immutable synthetic counts and preserve integer-count, identity, NTC and partition QC failures.",
+      "id": "02-count-qc",
+      "status": "pending"
+    },
+    {
+      "description": "Compute Poisson concentrations and exact transformed binomial intervals; pool only concordant passing wells.",
+      "id": "03-quantification",
+      "status": "pending"
+    },
+    {
+      "description": "Retain all wells, samples, failed controls and unavailable values with sample denominators.",
+      "id": "04-summary",
+      "status": "pending"
+    },
+    {
+      "description": "Register ordinary artifacts and separate bounded claims for coordinator-owned independent review.",
+      "id": "05-handoff",
+      "status": "pending"
+    }
+  ]
+}

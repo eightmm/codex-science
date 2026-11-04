@@ -1,0 +1,276 @@
+{
+  "cases": [
+    {
+      "finding": "chamber-exposure",
+      "id": "missing-dilution",
+      "path": [
+        "rows",
+        0,
+        "dilution_factor"
+      ],
+      "remove": true,
+      "target": "counts",
+      "value": null
+    },
+    {
+      "finding": "chamber-exposure",
+      "id": "missing-volume",
+      "path": [
+        "rows",
+        0,
+        "volume_ml"
+      ],
+      "remove": true,
+      "target": "counts",
+      "value": null
+    },
+    {
+      "finding": "chamber-exposure",
+      "id": "missing-mixing",
+      "path": [
+        "rows",
+        0,
+        "mixing_ratio"
+      ],
+      "remove": true,
+      "target": "counts",
+      "value": null
+    },
+    {
+      "finding": "chamber-exposure",
+      "id": "mixed-dilution",
+      "path": [
+        "rows",
+        0,
+        "dilution_factor"
+      ],
+      "remove": false,
+      "target": "counts",
+      "value": 3
+    },
+    {
+      "finding": "chamber-exposure",
+      "id": "mixed-chamber-factor",
+      "path": [
+        "rows",
+        0,
+        "volume_ml"
+      ],
+      "remove": false,
+      "target": "counts",
+      "value": 0.0002
+    },
+    {
+      "finding": "chamber-exposure",
+      "id": "mixed-mixing",
+      "path": [
+        "rows",
+        0,
+        "mixing_ratio",
+        "dye_parts"
+      ],
+      "remove": false,
+      "target": "counts",
+      "value": 2
+    },
+    {
+      "finding": "countable-selection",
+      "id": "outside-range-averaged",
+      "path": [
+        "samples",
+        1,
+        "included_squares"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": [
+        [
+          "B1",
+          "s1"
+        ]
+      ]
+    },
+    {
+      "finding": "minimum-viability",
+      "id": "too-few-viability",
+      "path": [
+        "samples",
+        1,
+        "viability"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": 1
+    },
+    {
+      "finding": "minimum-viability",
+      "id": "too-few-interval",
+      "path": [
+        "samples",
+        1,
+        "viability_interval"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": {
+        "level": 0.95,
+        "lower": 0.5,
+        "method": "clopper-pearson-exact",
+        "upper": 1
+      }
+    },
+    {
+      "finding": "binomial-interval",
+      "id": "wald-interval",
+      "path": [
+        "interval_method"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "wald"
+    },
+    {
+      "finding": "binomial-interval",
+      "id": "wald-sample-interval",
+      "path": [
+        "samples",
+        0,
+        "viability_interval",
+        "method"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "wald"
+    },
+    {
+      "finding": "replicate-disagreement",
+      "id": "replicates-pooled",
+      "path": [
+        "rows",
+        0,
+        "live"
+      ],
+      "remove": false,
+      "target": "counts",
+      "value": 30
+    },
+    {
+      "finding": "clumped-selection",
+      "id": "clumped-kept",
+      "path": [
+        "rows",
+        0,
+        "clumped"
+      ],
+      "remove": false,
+      "target": "counts",
+      "value": true
+    },
+    {
+      "finding": "post-hoc-squares",
+      "id": "post-hoc-squares",
+      "path": [
+        "square_ids"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": [
+        "s1"
+      ]
+    },
+    {
+      "finding": "unavailable-as-zero",
+      "id": "unavailable-zero",
+      "path": [
+        "samples",
+        1,
+        "cells_per_ml"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": 0
+    },
+    {
+      "finding": "rule-freeze",
+      "id": "unfrozen-rules",
+      "path": [
+        "frozen_before_counts_read"
+      ],
+      "remove": false,
+      "target": "pack",
+      "value": false
+    },
+    {
+      "finding": "missing-square",
+      "id": "missing-square",
+      "path": [
+        "rows",
+        7
+      ],
+      "remove": true,
+      "target": "counts",
+      "value": null
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-culture-health",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture establishes culture health"
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-potency",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture establishes potency"
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-release",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture establishes release"
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-clinical-relevance",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture establishes clinical relevance"
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-causality",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture establishes causality"
+    },
+    {
+      "finding": "claim-overreach",
+      "id": "overreach-physical-validity",
+      "path": [
+        "headline"
+      ],
+      "remove": false,
+      "target": "report",
+      "value": "Synthetic fixture establishes physical validity"
+    }
+  ],
+  "fixture": "synthetic fixture"
+}

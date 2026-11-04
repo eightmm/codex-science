@@ -1,0 +1,306 @@
+{
+  "fixture": "synthetic fixture",
+  "rows": [
+    {
+      "method_a": [
+        10.0
+      ],
+      "method_b": [
+        10.0
+      ],
+      "unit_id": "u01",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        20.5
+      ],
+      "method_b": [
+        19.5
+      ],
+      "unit_id": "u02",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        31.0
+      ],
+      "method_b": [
+        29.0
+      ],
+      "unit_id": "u03",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        41.0
+      ],
+      "method_b": [
+        39.0
+      ],
+      "unit_id": "u04",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        51.5
+      ],
+      "method_b": [
+        48.5
+      ],
+      "unit_id": "u05",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        62.0
+      ],
+      "method_b": [
+        58.0
+      ],
+      "unit_id": "u06",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        70.0
+      ],
+      "method_b": [
+        70.0
+      ],
+      "unit_id": "u07",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        80.5
+      ],
+      "method_b": [
+        79.5
+      ],
+      "unit_id": "u08",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        91.0
+      ],
+      "method_b": [
+        89.0
+      ],
+      "unit_id": "u09",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        101.0
+      ],
+      "method_b": [
+        99.0
+      ],
+      "unit_id": "u10",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        111.5
+      ],
+      "method_b": [
+        108.5
+      ],
+      "unit_id": "u11",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        122.0
+      ],
+      "method_b": [
+        118.0
+      ],
+      "unit_id": "u12",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        130.0
+      ],
+      "method_b": [
+        130.0
+      ],
+      "unit_id": "u13",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        140.5
+      ],
+      "method_b": [
+        139.5
+      ],
+      "unit_id": "u14",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        151.0
+      ],
+      "method_b": [
+        149.0
+      ],
+      "unit_id": "u15",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        161.0
+      ],
+      "method_b": [
+        159.0
+      ],
+      "unit_id": "u16",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        171.5
+      ],
+      "method_b": [
+        168.5
+      ],
+      "unit_id": "u17",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        182.0
+      ],
+      "method_b": [
+        178.0
+      ],
+      "unit_id": "u18",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        190.0
+      ],
+      "method_b": [
+        190.0
+      ],
+      "unit_id": "u19",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        200.5
+      ],
+      "method_b": [
+        199.5
+      ],
+      "unit_id": "u20",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        211.0
+      ],
+      "method_b": [
+        209.0
+      ],
+      "unit_id": "u21",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        221.0
+      ],
+      "method_b": [
+        219.0
+      ],
+      "unit_id": "u22",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        231.5
+      ],
+      "method_b": [
+        228.5
+      ],
+      "unit_id": "u23",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        242.0
+      ],
+      "method_b": [
+        238.0
+      ],
+      "unit_id": "u24",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        250.0
+      ],
+      "method_b": [
+        250.0
+      ],
+      "unit_id": "u25",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        260.5
+      ],
+      "method_b": [
+        259.5
+      ],
+      "unit_id": "u26",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        271.0
+      ],
+      "method_b": [
+        269.0
+      ],
+      "unit_id": "u27",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        281.0
+      ],
+      "method_b": [
+        279.0
+      ],
+      "unit_id": "u28",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        291.5
+      ],
+      "method_b": [
+        288.5
+      ],
+      "unit_id": "u29",
+      "units": "synthetic-unit"
+    },
+    {
+      "method_a": [
+        302.0
+      ],
+      "method_b": [
+        298.0
+      ],
+      "unit_id": "u30",
+      "units": "synthetic-unit"
+    }
+  ],
+  "schema": "ba-pairs-v1"
+}
