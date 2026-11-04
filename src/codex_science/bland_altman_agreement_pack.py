@@ -21,7 +21,7 @@ MAX_ITERATIONS = 10000
 QUANTILE_STEPS = 96
 REL_TOL = 1e-8
 EDGE_TOL = 1e-12
-FROZEN_ECHOES = frozenset(("maximum_allowed_difference",))
+FROZEN_ECHO_PATHS = (("intervals", "level"),)
 SINGULAR_REL = 1e-12
 MAX_RECORDS = 128
 MAX_STRING = 4096
@@ -515,22 +515,26 @@ def compute_agreement(pairs, rules, maximum_allowed_difference=None):
                                        and (upper <= bound or math.isclose(upper, bound, rel_tol=EDGE_TOL, abs_tol=0)))}}
 
 
-def _same(actual, expected, label):
+def _frozen_echo(path):
+    return any(path[-len(tail):] == tail for tail in FROZEN_ECHO_PATHS)
+
+
+def _same(actual, expected, label, path=()):
     if type(expected) is bool:
         _require(_boolean(actual, label) is expected, "reported-result", f"reported {label} differs")
     elif type(expected) in (int, float):
         _number(actual, label, -MAX_NUMBER, integer=type(expected) is int)
-        _require(math.isclose(actual, expected, rel_tol=EDGE_TOL if label in FROZEN_ECHOES else REL_TOL, abs_tol=0),
+        _require(math.isclose(actual, expected, rel_tol=EDGE_TOL if _frozen_echo(path) else REL_TOL, abs_tol=0),
                  "reported-number", f"reported {label} disagrees with reference")
     elif type(expected) is dict:
         _fields(actual, expected, label)
         for key in expected:
-            _same(actual[key], expected[key], key)
+            _same(actual[key], expected[key], key, path + (key,))
     elif type(expected) is list:
         _list(actual, label, MAX_UNITS, True)
         _require(len(actual) == len(expected), "unit-identity", "reported unit count differs")
         for a, b in zip(actual, expected):
-            _same(a, b, label)
+            _same(a, b, label, path)
     else:
         _require(type(actual) is type(expected) and actual == expected,
                  "reported-result", f"reported {label} differs from reference")

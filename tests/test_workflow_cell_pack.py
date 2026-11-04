@@ -564,10 +564,13 @@ class CellPackTests(unittest.TestCase):
         pack._same(1e-20 * (1 + 1e-10), 1e-20, 'small relative tie')
         pack._same(1e-20 * (1 + 5e-9), 1e-20, 'documented relative tolerance')
 
-    def test_frozen_echo_in_report_cannot_drift(self):
-        pack._same(0.95 * (1 + 5e-9), 0.95, 'reported_value')
+    def test_frozen_echo_paths_use_edge_tolerance(self):
+        def nest(path, value):
+            return {path[0]: nest(path[1:], value)} if path else value
+        drifted = 0.95 * (1 + 5e-9)
         with self.assertRaisesRegex(ValueError, '^reported-number:'):
-            pack._same(0.95 * (1 + 5e-9), 0.95, 'level')
+            pack._same(nest(('viability_interval', 'level'), drifted), nest(('viability_interval', 'level'), 0.95), 'root')
+        pack._same(nest(('means', 'level'), drifted), nest(('means', 'level'), 0.95), 'root')
 
     def test_cli_success_refusal_arguments_and_help(self):
         command = [sys.executable, str(ROOT / 'scripts/validate_cell_count_viability_pack.py')]

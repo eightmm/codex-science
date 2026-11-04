@@ -22,7 +22,7 @@ MAX_SQUARES = 64
 MAX_ARTIFACTS = 256
 REL_TOL = 1e-8
 EDGE_TOL = 1e-12
-FROZEN_ECHOES = frozenset(("interval_level", "level"))
+FROZEN_ECHO_PATHS = (("viability_interval", "level"),)
 MAX_ITERATIONS = 1000
 QUANTILE_STEPS = 96
 MAX_RECORDS = 128
@@ -529,20 +529,24 @@ def compute_cell_count_viability(counts, rules, square_ids=None):
                                              "unavailable": len(output) - quantified}}
 
 
-def _same(actual, expected, label):
+def _frozen_echo(path):
+    return any(path[-len(tail):] == tail for tail in FROZEN_ECHO_PATHS)
+
+
+def _same(actual, expected, label, path=()):
     if type(expected) in (int, float):
         _number(actual, label, -MAX_NUMBER, integer=type(expected) is int)
-        _require(math.isclose(actual, expected, rel_tol=EDGE_TOL if label in FROZEN_ECHOES else REL_TOL, abs_tol=0),
+        _require(math.isclose(actual, expected, rel_tol=EDGE_TOL if _frozen_echo(path) else REL_TOL, abs_tol=0),
                  "reported-number", f"reported {label} disagrees with reference")
     elif type(expected) is dict:
         _fields(actual, expected, label)
         for key in expected:
-            _same(actual[key], expected[key], key)
+            _same(actual[key], expected[key], key, path + (key,))
     elif type(expected) is list:
         _list(actual, label, MAX_ROWS, True)
         _require(len(actual) == len(expected), "countable-selection", "reported square or sample count differs")
         for a, b in zip(actual, expected):
-            _same(a, b, label)
+            _same(a, b, label, path)
     else:
         _require(type(actual) is type(expected) and actual == expected,
                  "reported-result", f"reported {label} differs from reference")

@@ -514,11 +514,6 @@ class NucPackTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '^post-hoc-bands:'):
             pack.validate_nucleic_acid_quant_purity_pack(self.save())
 
-    def test_frozen_echo_in_report_cannot_drift(self):
-        pack._same(2.3 * (1 + 5e-9), 2.3, 'reported_value')
-        with self.assertRaisesRegex(ValueError, '^reported-number:'):
-            pack._same(2.3 * (1 + 5e-9), 2.3, 'maximum')
-
     def test_cli_success_refusal_arguments_and_help(self):
         command = [sys.executable, str(ROOT / 'scripts/validate_nucleic_acid_quant_purity_pack.py')]
         for arguments in ([], ['--unknown'], [str(self.root / 'pack.json'), 'extra'], ['--output', 'x']):

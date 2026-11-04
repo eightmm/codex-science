@@ -206,7 +206,7 @@ class DissolutionPackTests(unittest.TestCase):
     def test_report_numeric_times_and_integer_counts(self):
         pack._same({'selected_points': [1.5]}, {'selected_points': [1.5]}, 'means')
         computation = self.documents['report']['computation']
-        computation['selected_time_points'] = [float(t) * (1 + 1e-10) for t in computation['selected_time_points']]
+        computation['selected_time_points'] = [float(t) for t in computation['selected_time_points']]
         for control in computation['cv_controls']:
             control['time_point'] = float(control['time_point'])
             control['limit'] = float(control['limit'])
@@ -466,10 +466,17 @@ class DissolutionPackTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '^frozen-threshold:'):
             pack.compute_dissolution(self.documents['profiles'], self.documents['rules'])
 
-    def test_frozen_echo_in_report_cannot_drift(self):
-        pack._same(20 * (1 + 5e-9), 20, 'reported_value')
+    def test_frozen_echo_paths_use_edge_tolerance(self):
+        def nest(path, value):
+            return {path[0]: nest(path[1:], value)} if path else value
+        drifted = 20.0 * (1 + 5e-9)
         with self.assertRaisesRegex(ValueError, '^reported-number:'):
-            pack._same(20 * (1 + 5e-9), 20, 'limit')
+            pack._same(nest(('cv_controls', 'limit'), drifted), nest(('cv_controls', 'limit'), 20.0), 'root')
+        pack._same(nest(('means', 'limit'), drifted), nest(('means', 'limit'), 20.0), 'root')
+
+    def test_selected_time_echo_uses_edge_tolerance(self):
+        with self.assertRaisesRegex(ValueError, '^reported-number:'):
+            pack._same({'selected_time_points': [5 * (1 + 5e-9), 10]}, {'selected_time_points': [5, 10]}, 'root')
 
     def test_cli_success_refusal_arguments_and_help(self):
         command = [sys.executable, str(ROOT / 'scripts/validate_dissolution_profile_f2_pack.py')]

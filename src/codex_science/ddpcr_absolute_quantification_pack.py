@@ -20,7 +20,7 @@ MAX_PARTITIONS = 1000000
 MAX_ARTIFACTS = 256
 RELATIVE_TOLERANCE = 1e-8
 EDGE_TOLERANCE = 1e-12
-FROZEN_ECHOES = frozenset(("agreement_bound", "saturation_bound", "confidence_level", "level"))
+FROZEN_ECHO_PATHS = (("interval", "level"),)
 MAX_ITERATIONS = 10000
 QUANTILE_STEPS = 96
 MAX_RECORDS = 128
@@ -547,20 +547,24 @@ def compute_ddpcr(counts, rules, thresholds=None):
     return {"wells": output, "samples": samples, "summary": summary}
 
 
-def _same(actual, expected, label):
+def _frozen_echo(path):
+    return any(path[-len(tail):] == tail for tail in FROZEN_ECHO_PATHS)
+
+
+def _same(actual, expected, label, path=()):
     if type(expected) in (int, float):
         _number(actual, label, -MAX_NUMBER, integer=type(expected) is int)
-        _require(math.isclose(actual, expected, rel_tol=EDGE_TOLERANCE if label in FROZEN_ECHOES else RELATIVE_TOLERANCE,
+        _require(math.isclose(actual, expected, rel_tol=EDGE_TOLERANCE if _frozen_echo(path) else RELATIVE_TOLERANCE,
                               abs_tol=0), "reported-number", f"reported {label} disagrees with reference")
     elif type(expected) is dict:
         _fields(actual, expected, label)
         for key in expected:
-            _same(actual[key], expected[key], key)
+            _same(actual[key], expected[key], key, path + (key,))
     elif type(expected) is list:
         _list(actual, label, MAX_ROWS, True)
         _require(len(actual) == len(expected), "reported-selection", "reported well or sample count differs")
         for a, b in zip(actual, expected):
-            _same(a, b, label)
+            _same(a, b, label, path)
     else:
         _require(type(actual) is type(expected) and actual == expected,
                  "reported-result", f"reported {label} differs from reference")

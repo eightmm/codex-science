@@ -25,7 +25,7 @@ MAX_DEPTH = 32
 MAX_NUMBER = 1e100
 REL_TOL = 1e-8
 EDGE_TOL = 1e-12
-FROZEN_ECHOES = frozenset(("limit", "time_point"))
+FROZEN_ECHO_PATHS = (("cv_controls", "limit"), ("cv_controls", "time_point"), ("selected_time_points",))
 REL_DEGENERATE = 1e-12
 POSITIVE = {"supported", "replicated", "suggestive"}
 STATUSES = POSITIVE | {"planned", "conflicting", "unsupported", "withdrawn", "unavailable"}
@@ -459,10 +459,14 @@ def compute_dissolution(profiles, rules, selected_time_points=None):
                         "failed_cv_controls": sum(row["passed"] is False for row in controls)}}
 
 
-def _same(actual, expected, label):
+def _frozen_echo(path):
+    return any(path[-len(tail):] == tail for tail in FROZEN_ECHO_PATHS)
+
+
+def _same(actual, expected, label, path=()):
     if type(expected) in (int, float):
         _number(actual, label, -MAX_NUMBER)
-        _require(_edge(actual, expected) if label in FROZEN_ECHOES else _close(actual, expected),
+        _require(_edge(actual, expected) if _frozen_echo(path) else _close(actual, expected),
                  "reported-number", f"reported {label} disagrees with reference")
     elif type(expected) is dict:
         _fields(actual, expected, label)
@@ -471,12 +475,12 @@ def _same(actual, expected, label):
                 _number(value, "reported count", 1 if label == "unit_counts" else 0,
                         MAX_UNITS if label == "unit_counts" else MAX_ROWS, True)
         for key in expected:
-            _same(actual[key], expected[key], key)
+            _same(actual[key], expected[key], key, path + (key,))
     elif type(expected) is list:
         _list(actual, label, MAX_ROWS, True)
         _require(len(actual) == len(expected), "reported-result", "reported result count differs")
         for a, b in zip(actual, expected):
-            _same(a, b, label)
+            _same(a, b, label, path)
     else:
         _require(type(actual) is type(expected) and actual == expected,
                  "reported-result", f"reported {label} differs from reference")
