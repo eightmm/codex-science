@@ -278,7 +278,7 @@ class MetaAnalysisPackTests(unittest.TestCase):
         original_evidence = self.read("evidence.json")
         for status in ("supported", "replicated", "suggestive"):
             for field in ("kind", "result"):
-                for value in ("review-approval", "computed"):
+                for value in ("review-approval", "computed", "arithmetic-only", "meta-analysis-result-v1", "meta-analysis-validation-v1"):
                     evidence = copy.deepcopy(original_evidence)
                     evidence["records"][0][field] = value
                     self.write("evidence.json", evidence)

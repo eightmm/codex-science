@@ -525,7 +525,7 @@ def _claims(bundle, handoff, too_few, outputs):
                      "MA_CLAIM_BOUNDARY", "only bounded statistical evidence may be claimed")
             for ref in refs:
                 record, source = records[ref]
-                prohibited = re.compile(r"review|approv|comput|numerical|simulat", re.I)
+                prohibited = re.compile(r"review|approv|comput|numerical|simulat|arithmet|result-v1|validation-v1", re.I)
                 _require(all(_text(item.get(field)) and not prohibited.search(item[field])
                              for item in (record, source) for field in ("kind", "result")),
                          "MA_CLAIM_EVIDENCE", "approval or computed record cannot support a positive claim")

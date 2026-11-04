@@ -292,7 +292,7 @@ class QpcrClaimTests(_Fixture):
     def test_positive_statuses_check_kind_and_result_and_refusal_order(self):
         for status in sorted(qpcr.POSITIVE):
             for field in ("kind", "result"):
-                for label in ("computed", "review-approved", "arithmetic-only", "numerical-agreement"):
+                for label in ("computed", "review-approved", "arithmetic-only", "numerical-agreement", "qpcr-result-v1"):
                     with self.subTest(status=status, field=field, label=label):
                         self._edit("report", ["claims", 0, "status"], status)
                         self._edit("report", ["claims", 0, "text"], "Synthetic fixture values agree.")

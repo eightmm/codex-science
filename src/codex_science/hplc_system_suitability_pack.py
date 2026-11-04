@@ -35,7 +35,7 @@ OVERREACH = re.compile(
     r"system[\s-]+qualif\w*|release|patient[\s-]+benefit\w*)\b", re.I,
 )
 ASSERTION = re.compile(r"\b(?:supported|replicated|suggestive|significan\w*)\b", re.I)
-NON_EVIDENCE = re.compile(r"review|approv|comput|numer|arithmet|hplc-result|agreement|truth|physical|clinic", re.I)
+NON_EVIDENCE = re.compile(r"review|approv|comput|numer|arithmet|result-v1|hplc-result|agreement|truth|physical|clinic", re.I)
 LIMIT_KEYS = ("retention_time_rsd_max", "peak_area_rsd_max", "tailing_max", "plates_min",
               "resolution_min", "signal_to_noise_min", "carryover_max")
 

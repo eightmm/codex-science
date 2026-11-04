@@ -38,7 +38,7 @@ OVERREACH = re.compile(
     + r"|biomarker\w*|target[\s-]+valid\w*|physical[\s-]+valid\w*|truth)\b", re.I,
 )
 ASSERTION = re.compile(r"\b(?:supported|replicated|suggestive|significan\w*)\b", re.I)
-NON_EVIDENCE = re.compile(r"review|approv|comput|calculat|arithmet|numer|agreement|truth|physical|clinic", re.I)
+NON_EVIDENCE = re.compile(r"review|approv|comput|calculat|arithmet|result-v1|numer|agreement|truth|physical|clinic", re.I)
 
 
 def _require(condition, code, message):

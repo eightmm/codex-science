@@ -232,7 +232,8 @@ class HPLCPackTests(unittest.TestCase):
     def test_claim_kind_and_result_not_labels(self):
             for kind, result in (('review-approval', 'observed'), ('observed', 'review-approval'),
                                  ('computed', 'observed'), ('observed', 'numerical-agreement'),
-                             ('arithmetic-only', 'observed'), ('observed', 'arithmetic-only'), ('hplc-result-v1', 'pass')):
+                             ('arithmetic-only', 'observed'), ('observed', 'arithmetic-only'), ('hplc-result-v1', 'pass'),
+                             ('calibration-lod-result-v1', 'pass'), ('observed', 'qpcr-result-v1')):
                 self.evidence(kind, result)
                 with self.subTest(kind=kind, result=result), self.assertRaisesRegex(ValueError, '^non-evidence-support:'):
                     pack.validate_hplc_system_suitability_pack(self.save())
