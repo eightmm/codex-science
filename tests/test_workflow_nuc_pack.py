@@ -502,6 +502,12 @@ class NucPackTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '^reported-number:'):
             pack._same(2e-20, 1e-20, 'small distinct number')
         pack._same(1e-20 * (1 + 1e-10), 1e-20, 'small relative tie')
+        pack._same(1e-20 * (1 + 5e-9), 1e-20, 'documented relative tolerance')
+
+    def test_decimal_band_edges_are_inclusive(self):
+        self.assertTrue(pack._inside(2.0000000000000004, 1, 2))
+        self.assertTrue(pack._inside(0.9999999999999999, 1, 2))
+        self.assertFalse(pack._inside(2.000000001, 1, 2))
 
     def test_cli_success_refusal_arguments_and_help(self):
         command = [sys.executable, str(ROOT / 'scripts/validate_nucleic_acid_quant_purity_pack.py')]

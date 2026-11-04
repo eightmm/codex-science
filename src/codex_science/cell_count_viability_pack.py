@@ -20,7 +20,8 @@ MAX_CELLS = 100000
 MAX_CHAMBERS = 256
 MAX_SQUARES = 64
 MAX_ARTIFACTS = 256
-REL_TOL = 1e-9
+REL_TOL = 1e-8
+EDGE_TOL = 1e-12
 MAX_ITERATIONS = 1000
 QUANTILE_STEPS = 96
 MAX_RECORDS = 128
@@ -501,7 +502,7 @@ def compute_cell_count_viability(counts, rules, square_ids=None):
             _require(mean > 0, "degenerate-counts", "zero mean cannot define replicate disagreement")
             disagreement = (max(chamber_means) - min(chamber_means)) / mean
             bound = rules["maximum_disagreement"]
-            _require(disagreement <= bound or math.isclose(disagreement, bound, rel_tol=REL_TOL, abs_tol=0),
+            _require(disagreement <= bound or math.isclose(disagreement, bound, rel_tol=EDGE_TOL, abs_tol=0),
                      "replicate-disagreement", "replicate chambers exceed frozen relative disagreement")
         available = complete and usable >= rules["minimum_total_cells"]
         live = sum(row["live"] for row in recorded)

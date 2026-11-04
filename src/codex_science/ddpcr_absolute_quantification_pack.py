@@ -18,7 +18,8 @@ MAX_SAMPLES = 128
 MAX_NODES = 4000000
 MAX_PARTITIONS = 1000000
 MAX_ARTIFACTS = 256
-RELATIVE_TOLERANCE = 1e-9
+RELATIVE_TOLERANCE = 1e-8
+EDGE_TOLERANCE = 1e-12
 MAX_ITERATIONS = 10000
 QUANTILE_STEPS = 96
 MAX_RECORDS = 128
@@ -527,7 +528,8 @@ def compute_ddpcr(counts, rules, thresholds=None):
         if reason == "none":
             lambdas = [row["lambda"] for row in wells]
             largest = max(lambdas)
-            if largest > 0 and (largest - min(lambdas)) / largest > thresholds["agreement_bound"]:
+            if (largest > 0 and (largest - min(lambdas)) / largest > thresholds["agreement_bound"]
+                    and not math.isclose((largest - min(lambdas)) / largest, thresholds["agreement_bound"], rel_tol=EDGE_TOLERANCE, abs_tol=0)):
                 reason = "replicate-disagreement"
         result = {"sample_id": sample, "well_ids": [row["well_id"] for row in wells],
                   "status": "quantified" if reason == "none" else "unavailable", "reason": reason,

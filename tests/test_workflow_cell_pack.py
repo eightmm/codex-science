@@ -562,6 +562,7 @@ class CellPackTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '^reported-number:'):
             pack._same(2e-20, 1e-20, 'small distinct number')
         pack._same(1e-20 * (1 + 1e-10), 1e-20, 'small relative tie')
+        pack._same(1e-20 * (1 + 5e-9), 1e-20, 'documented relative tolerance')
 
     def test_cli_success_refusal_arguments_and_help(self):
         command = [sys.executable, str(ROOT / 'scripts/validate_cell_count_viability_pack.py')]

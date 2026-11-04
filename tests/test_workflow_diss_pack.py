@@ -450,6 +450,12 @@ class DissolutionPackTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '^reported-number:'):
             pack._same(2e-20, 1e-20, 'small distinct number')
         pack._same(1e-20 * (1 + 1e-10), 1e-20, 'small relative tie')
+        pack._same(1e-20 * (1 + 5e-9), 1e-20, 'documented relative tolerance')
+
+    def test_decision_edges_use_tight_tolerance(self):
+        self.assertTrue(pack._edge(85 * (1 + 1e-13), 85))
+        self.assertFalse(pack._edge(85.00000001, 85))
+        self.assertFalse(pack._edge(49.99999998, 50))
 
     def test_cli_success_refusal_arguments_and_help(self):
         command = [sys.executable, str(ROOT / 'scripts/validate_dissolution_profile_f2_pack.py')]

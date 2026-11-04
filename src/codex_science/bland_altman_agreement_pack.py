@@ -19,7 +19,8 @@ MAX_REPLICATES = 128
 MAX_NODES = 4000000
 MAX_ITERATIONS = 10000
 QUANTILE_STEPS = 96
-REL_TOL = 1e-9
+REL_TOL = 1e-8
+EDGE_TOL = 1e-12
 SINGULAR_REL = 1e-12
 MAX_RECORDS = 128
 MAX_STRING = 4096
@@ -470,8 +471,10 @@ def compute_agreement(pairs, rules, maximum_allowed_difference=None):
     standardized = [d / sd_normalized for d in centered]
     skewness = math.fsum(d ** 3 for d in standardized) / n
     kurtosis = math.fsum(d ** 4 for d in standardized) / n - 3
-    _require(abs(skewness) <= rules["normality_max_abs_skewness"]
-             and abs(kurtosis) <= rules["normality_max_abs_excess_kurtosis"],
+    _require((abs(skewness) <= rules["normality_max_abs_skewness"]
+              or math.isclose(abs(skewness), rules["normality_max_abs_skewness"], rel_tol=EDGE_TOL, abs_tol=0))
+             and (abs(kurtosis) <= rules["normality_max_abs_excess_kurtosis"]
+                  or math.isclose(abs(kurtosis), rules["normality_max_abs_excess_kurtosis"], rel_tol=EDGE_TOL, abs_tol=0)),
              "normality-screen", "frozen skewness or excess kurtosis screen failed")
     xscale = max(abs(x) for x in means)
     _require(xscale > 0, "degenerate-numeric", "pair means have zero variance")
@@ -507,7 +510,8 @@ def compute_agreement(pairs, rules, maximum_allowed_difference=None):
             "t": t, "degrees_of_freedom": n - 2, "p_value": p,
             "screen": "detected" if p < rules["proportional_bias_alpha"] else "not-detected"},
             "normality": {"skewness": skewness, "excess_kurtosis": kurtosis, "screen": "passed"},
-            "limits_within_bound": lower >= -bound and upper <= bound}}
+            "limits_within_bound": ((lower >= -bound or math.isclose(lower, -bound, rel_tol=EDGE_TOL, abs_tol=0))
+                                       and (upper <= bound or math.isclose(upper, bound, rel_tol=EDGE_TOL, abs_tol=0)))}}
 
 
 def _same(actual, expected, label):

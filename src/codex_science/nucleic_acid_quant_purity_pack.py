@@ -17,7 +17,14 @@ MAX_ROWS = 10000
 MAX_SAMPLES = 128
 MAX_NODES = 4000000
 MAX_REPLICATES = 128
-RELATIVE_TOLERANCE = 1e-9
+RELATIVE_TOLERANCE = 1e-8
+EDGE_TOLERANCE = 1e-12
+
+
+def _inside(value, minimum, maximum):
+    return (minimum <= value <= maximum or math.isclose(value, minimum, rel_tol=EDGE_TOLERANCE, abs_tol=0)
+            or math.isclose(value, maximum, rel_tol=EDGE_TOLERANCE, abs_tol=0))
+
 RELATIVE_ZERO = 1e-12
 CONVERSION_FACTORS = {"dsDNA": 50.0, "RNA": 40.0}
 WAVELENGTHS = ("A230", "A260", "A280", "A320")
@@ -431,7 +438,7 @@ def compute_quant_purity(readings, rules, purity_bands=None):
             scale = max(scale, *(abs(blank_reading[key]) for key in WAVELENGTHS))
             if any(value < 0 for value in corrected.values()):
                 result["flags"].append("negative-absorbance")
-            if not rules["linear_a260_range"]["minimum"] <= corrected["A260"] <= rules["linear_a260_range"]["maximum"]:
+            if not _inside(corrected["A260"], rules["linear_a260_range"]["minimum"], rules["linear_a260_range"]["maximum"]):
                 result["flags"].append("outside-linear-range")
             if any(corrected[key] <= RELATIVE_ZERO * scale for key in ("A230", "A280")):
                 result["flags"].append("non-positive-denominator")
@@ -445,7 +452,7 @@ def compute_quant_purity(readings, rules, purity_bands=None):
             result["a260_a230"] = corrected["A260"] / corrected["A230"]
             for ratio in ("a260_a280", "a260_a230"):
                 band = bands[analyte][ratio]
-                if not band["minimum"] <= result[ratio] <= band["maximum"]:
+                if not _inside(result[ratio], band["minimum"], band["maximum"]):
                     result["flags"].append(ratio + "-outside-band")
         sample_result = {"sample_id": identity, "analyte": analyte, "replicates": results,
                          "classification": "unavailable", "concentration_ng_ul": "unavailable",
@@ -455,7 +462,8 @@ def compute_quant_purity(readings, rules, purity_bands=None):
         concentrations = [row["concentration_ng_ul"] for row in results]
         if all(type(value) in (int, float) for value in concentrations):
             difference = (max(concentrations) - min(concentrations)) / max(concentrations)
-            _require(difference <= rules["replicate_max_relative_difference"],
+            _require(difference <= rules["replicate_max_relative_difference"]
+                     or math.isclose(difference, rules["replicate_max_relative_difference"], rel_tol=EDGE_TOLERANCE, abs_tol=0),
                      "replicate-disagreement", "replicates exceed frozen relative agreement bound")
             sample_result["classification"] = "quantified"
             sample_result["replicate_relative_difference"] = difference

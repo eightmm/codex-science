@@ -145,6 +145,10 @@ class DDPCRPackTests(unittest.TestCase):
         self.assertEqual(pack.compute_ddpcr(counts, rules)['samples'][0]['status'], 'quantified')
         rules['agreement_bound'] = bound * (1 - 1e-10)
         self.assertEqual(pack.compute_ddpcr(counts, rules)['samples'][0]['reason'], 'replicate-disagreement')
+        rounded = float('%.15g' % bound)
+        self.assertLess(rounded, bound)
+        rules['agreement_bound'] = rounded
+        self.assertEqual(pack.compute_ddpcr(counts, rules)['samples'][0]['status'], 'quantified')
         thresholds = {key: rules[key] for key in pack.THRESHOLDS.split()}
         thresholds['saturation_bound'] = .6
         self.documents['report'].update(exploratory=True, thresholds=thresholds)
@@ -441,6 +445,7 @@ class DDPCRPackTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '^reported-number:'):
             pack._same(2e-20, 1e-20, 'small distinct number')
         pack._same(1e-20 * (1 + 1e-10), 1e-20, 'small relative tie')
+        pack._same(1e-20 * (1 + 5e-9), 1e-20, 'documented relative tolerance')
 
     def test_cli_success_refusal_arguments_and_help(self):
         command = [sys.executable, str(ROOT / 'scripts/validate_ddpcr_absolute_quantification_pack.py')]

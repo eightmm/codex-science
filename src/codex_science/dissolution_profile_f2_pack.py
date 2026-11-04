@@ -23,7 +23,8 @@ MAX_RECORDS = 128
 MAX_STRING = 4096
 MAX_DEPTH = 32
 MAX_NUMBER = 1e100
-REL_TOL = 1e-9
+REL_TOL = 1e-8
+EDGE_TOL = 1e-12
 REL_DEGENERATE = 1e-12
 POSITIVE = {"supported", "replicated", "suggestive"}
 STATUSES = POSITIVE | {"planned", "conflicting", "unsupported", "withdrawn", "unavailable"}
@@ -322,6 +323,10 @@ def _close(actual, expected):
     return math.isclose(actual, expected, rel_tol=REL_TOL, abs_tol=0)
 
 
+def _edge(actual, expected):
+    return math.isclose(actual, expected, rel_tol=EDGE_TOL, abs_tol=0)
+
+
 def _times(value, label, empty=False):
     values = _list(value, label, MAX_TIME_POINTS, empty)
     for item in values:
@@ -414,7 +419,7 @@ def compute_dissolution(profiles, rules, selected_time_points=None):
                                   if len(column) >= 2 else "unavailable")
     reference, test = rules["product_ids"]
     late = [i for i in indices if any(means[p][i] > rules["late_percent_limit"]
-                                     and not _close(means[p][i], rules["late_percent_limit"])
+                                     and not _edge(means[p][i], rules["late_percent_limit"])
                                      for p in rules["product_ids"])]
     _require(len(late) <= rules["maximum_late_points"],
              "multiple-late-points", "at most one selected point after 85 percent in either product")
@@ -423,7 +428,7 @@ def compute_dissolution(profiles, rules, selected_time_points=None):
         for order, i in enumerate(indices):
             cv = cvs[product][i]
             limit = rules["first_cv_limit"] if order == 0 else rules["later_cv_limit"]
-            passed = cv <= limit or _close(cv, limit) if type(cv) in (int, float) else "unavailable"
+            passed = cv <= limit or _edge(cv, limit) if type(cv) in (int, float) else "unavailable"
             controls.append({"product_id": product, "time_point": rules["time_points"][i],
                              "cv": cv, "limit": limit, "passed": passed})
     enough = all(counts[p] >= 12 and rules["units_per_product"][p] >= 12 for p in counts)
@@ -443,7 +448,7 @@ def compute_dissolution(profiles, rules, selected_time_points=None):
             squared = math.fsum((a - b) ** 2 for a, b in zip(r, t)) / len(r)
             f2 = 50 * math.log10(100 / math.sqrt(1 + squared))
             if status == "computed":
-                threshold_result = "at-or-above-50" if f2 >= 50 or _close(f2, 50) else "below-50"
+                threshold_result = "at-or-above-50" if f2 >= 50 or _edge(f2, 50) else "below-50"
     return {"unit_counts": counts, "selected_time_points": selected,
             "means": {p: [means[p][i] for i in indices] for p in rules["product_ids"]},
             "cv_controls": controls, "f1": f1, "f2": f2, "f2_status": status,

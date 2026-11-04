@@ -206,8 +206,12 @@ class BlandAltmanPackTests(unittest.TestCase):
         self.documents['rules']['normality_max_abs_excess_kurtosis'] = 0
         with self.assertRaisesRegex(ValueError, '^normality-screen:'):
             pack.compute_agreement(self.documents['pairs'], self.documents['rules'])
+        self.documents['rules']['normality_max_abs_excess_kurtosis'] = 19 / 12
+        pack.compute_agreement(self.documents['pairs'], self.documents['rules'])
         self.load_base('')
         edge = result['upper_limit']
+        self.assertTrue(pack.compute_agreement(self.documents['pairs'], self.documents['rules'], edge * (1 - 1e-13))['summary']['limits_within_bound'])
+        pack._same(1.0 * (1 + 5e-9), 1.0, 'documented relative tolerance')
         self.assertTrue(pack.compute_agreement(self.documents['pairs'], self.documents['rules'], edge)['summary']['limits_within_bound'])
         self.assertFalse(pack.compute_agreement(self.documents['pairs'], self.documents['rules'], edge * (1 - 1e-6))['summary']['limits_within_bound'])
         self.documents['report'].update(exploratory=True, maximum_allowed_difference=7)
