@@ -1698,6 +1698,18 @@
       "status": "active"
     },
     {
+      "description": "Check supplied paired measurements with frozen Bland\u2013Altman bias, limits, t intervals and proportional-bias screens. Use for synthetic method-comparison tables with matching units; exclude interchangeability, equivalence and medical conclusions.",
+      "executable_count": 0,
+      "instruction_line_count": 45,
+      "license": "MIT",
+      "name": "cx-workflow-bland-altman-agreement",
+      "path": "authored-skills/workflow-bland-altman-agreement",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Conduct a fixed-stage bulk expression differential analysis from an admitted dataset and declared design through QC, a frozen contrast, multiplicity-controlled testing, supplied gene-set enrichment, and independent review handoff. Use for bulk RNA expression association questions; not single-cell analysis, causal mechanisms, clinical inference, or automatic installation and execution of external tools.",
       "executable_count": 0,
       "instruction_line_count": 49,
@@ -1734,6 +1746,18 @@
       "status": "active"
     },
     {
+      "description": "Check recorded hemocytometer or automated-counter cell counts with frozen chamber volumes, dilution, dye mixing, replicate agreement and exact live-fraction bounds. Use for supplied synthetic count tables; exclude culture-health, potency, release and medical conclusions.",
+      "executable_count": 0,
+      "instruction_line_count": 43,
+      "license": "MIT",
+      "name": "cx-workflow-cell-count-viability",
+      "path": "authored-skills/workflow-cell-count-viability",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Check already-counted serial-dilution colony plates with frozen countable ranges, exposure-weighted CFU per mL and exact Poisson bounds. Use for supplied synthetic counts; exclude sterility, safety, potency and medical conclusions.",
       "executable_count": 0,
       "instruction_line_count": 43,
@@ -1758,12 +1782,36 @@
       "status": "active"
     },
     {
+      "description": "Check already-read droplet digital PCR partition counts with frozen controls, Poisson copy concentration, exact binomial bounds and concordant replicate pooling. Use for supplied synthetic count tables; exclude copy-number state, gene dosage and medical conclusions.",
+      "executable_count": 0,
+      "instruction_line_count": 45,
+      "license": "MIT",
+      "name": "cx-workflow-ddpcr-absolute-quantification",
+      "path": "authored-skills/workflow-ddpcr-absolute-quantification",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
       "description": "Evaluate diagnostic accuracy of supplied per-subject continuous scores against a reference standard using frozen thresholds, bias refusals, Wilson intervals and tie-aware ROC AUC. Use for sensitivity, specificity and prevalence-qualified predictive values; does not establish patient benefit.",
       "executable_count": 0,
       "instruction_line_count": 106,
       "license": "MIT",
       "name": "cx-workflow-diagnostic-accuracy",
       "path": "authored-skills/workflow-diagnostic-accuracy",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Check supplied synthetic percent-dissolved profiles with frozen shared times, unit counts, CV limits and mean-based f1/f2 factors. Use for offline arithmetic; exclude bioequivalence, product quality and acceptance decisions.",
+      "executable_count": 0,
+      "instruction_line_count": 41,
+      "license": "MIT",
+      "name": "cx-workflow-dissolution-profile-f2",
+      "path": "authored-skills/workflow-dissolution-profile-f2",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -1932,6 +1980,18 @@
       "license": "MIT",
       "name": "cx-workflow-microbiome-composition",
       "path": "authored-skills/workflow-microbiome-composition",
+      "physical_lab": false,
+      "reasons": [],
+      "source": "cx",
+      "status": "active"
+    },
+    {
+      "description": "Check supplied nucleic-acid absorbance readings with frozen dsDNA/RNA conversion factors, path length, dilution, A320 background, matched blank and purity-ratio bands. Use for synthetic spectrophotometric arithmetic; exclude sample suitability and downstream-use conclusions.",
+      "executable_count": 0,
+      "instruction_line_count": 43,
+      "license": "MIT",
+      "name": "cx-workflow-nucleic-acid-quant-purity",
+      "path": "authored-skills/workflow-nucleic-acid-quant-purity",
       "physical_lab": false,
       "reasons": [],
       "source": "cx",
@@ -4251,8 +4311,8 @@
     }
   ],
   "summary": {
-    "active": 216,
+    "active": 221,
     "inactive": 113,
-    "total": 329
+    "total": 334
   }
 }

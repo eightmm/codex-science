@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Workflow Ddpcr Absolute Quantification"
+  short_description: "Audited scientific workflow for cx-workflow-ddpcr-absolute-quant"
+  default_prompt: "Use $cx-workflow-ddpcr-absolute-quantification for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false

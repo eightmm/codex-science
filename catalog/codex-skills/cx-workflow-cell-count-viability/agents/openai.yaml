@@ -1,0 +1,6 @@
+interface:
+  display_name: "Cx Workflow Cell Count Viability"
+  short_description: "Audited scientific workflow for cx-workflow-cell-count-viability"
+  default_prompt: "Use $cx-workflow-cell-count-viability for this scientific task with catalog safeguards."
+policy:
+  allow_implicit_invocation: false
