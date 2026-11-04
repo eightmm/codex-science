@@ -364,7 +364,7 @@ def _rules(value):
         analyte = _text(sample["analyte"], "analyte")
         _require(analyte in CONVERSION_FACTORS, "analyte-rule", "only frozen dsDNA and RNA factors are admitted")
         factor = _number(sample["conversion_factor_ng_ul"], "conversion factor", 1, 100)
-        _require(math.isclose(factor, CONVERSION_FACTORS[analyte], rel_tol=RELATIVE_TOLERANCE, abs_tol=0),
+        _require(math.isclose(factor, CONVERSION_FACTORS[analyte], rel_tol=EDGE_TOLERANCE, abs_tol=0),
                  "conversion-factor", "factor differs from declared analyte")
         _number(sample["dilution_factor"], "dilution factor", 1, 1e12)
     return value
@@ -548,7 +548,7 @@ def validate_nucleic_acid_quant_purity_pack(bundle):
         exploratory = _boolean(report["exploratory"], "exploratory")
         bands = _bands(report["purity_bands"])
         _require(all(math.isclose(bands[a][r][edge], rules["purity_bands"][a][r][edge],
-                                  rel_tol=RELATIVE_TOLERANCE, abs_tol=0)
+                                  rel_tol=EDGE_TOLERANCE, abs_tol=0)
                      for a in CONVERSION_FACTORS for r in bands[a] for edge in bands[a][r]) or exploratory,
                  "post-hoc-bands", "post-outcome band change requires exploratory label")
         _require(report["background_rule"] == rules["background_rule"],

@@ -509,6 +509,11 @@ class NucPackTests(unittest.TestCase):
         self.assertTrue(pack._inside(0.9999999999999999, 1, 2))
         self.assertFalse(pack._inside(2.000000001, 1, 2))
 
+    def test_reported_band_cannot_drift_within_report_tolerance(self):
+        self.documents['report']['purity_bands']['RNA']['a260_a230']['maximum'] = 2.3 * (1 + 5e-9)
+        with self.assertRaisesRegex(ValueError, '^post-hoc-bands:'):
+            pack.validate_nucleic_acid_quant_purity_pack(self.save())
+
     def test_cli_success_refusal_arguments_and_help(self):
         command = [sys.executable, str(ROOT / 'scripts/validate_nucleic_acid_quant_purity_pack.py')]
         for arguments in ([], ['--unknown'], [str(self.root / 'pack.json'), 'extra'], ['--output', 'x']):

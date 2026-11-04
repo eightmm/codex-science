@@ -447,6 +447,16 @@ class DDPCRPackTests(unittest.TestCase):
         pack._same(1e-20 * (1 + 1e-10), 1e-20, 'small relative tie')
         pack._same(1e-20 * (1 + 5e-9), 1e-20, 'documented relative tolerance')
 
+    def test_reported_threshold_cannot_drift_within_report_tolerance(self):
+        self.documents['report']['thresholds']['saturation_bound'] = 0.7 * (1 + 5e-9)
+        with self.assertRaisesRegex(ValueError, '^post-hoc-threshold:'):
+            pack.validate_ddpcr_absolute_quantification_pack(self.save())
+
+    def test_saturation_bound_is_inclusive_at_decimal_edge(self):
+        rules, counts = self.documents['rules'], self.documents['counts']
+        rules['saturation_bound'] = 0.49999999999999994
+        self.assertNotEqual(pack.compute_ddpcr(counts, rules)['wells'][1]['reason'], 'saturated-well')
+
     def test_cli_success_refusal_arguments_and_help(self):
         command = [sys.executable, str(ROOT / 'scripts/validate_ddpcr_absolute_quantification_pack.py')]
         for arguments in ([], ['--unknown'], [str(self.root / 'pack.json'), 'extra'], ['--output', 'x']):

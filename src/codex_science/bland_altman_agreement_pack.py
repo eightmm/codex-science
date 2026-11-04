@@ -389,7 +389,7 @@ def _rules(value):
     _number(value["minimum_pairs"], "minimum pairs", 3, MAX_UNITS, True)
     _number(value["interval_minimum_pairs"], "interval minimum pairs", 30, 30, True)
     _number(value["loa_multiplier"], "limits multiplier", 1, 3)
-    _require(math.isclose(value["loa_multiplier"], 1.96, rel_tol=REL_TOL, abs_tol=0),
+    _require(math.isclose(value["loa_multiplier"], 1.96, rel_tol=EDGE_TOL, abs_tol=0),
              "limits-multiplier", "limits require frozen multiplier 1.96")
     _require(value["interval_method"] == "bland-altman-1986-t", "agreement-interval", "t-based intervals required")
     _number(value["interval_level"], "interval level", 0.5, 0.999)
@@ -591,7 +591,7 @@ def validate_bland_altman_agreement_pack(bundle):
                  "rule-freeze", "report cites a different frozen rule revision")
         exploratory = _boolean(report["exploratory"], "exploratory")
         bound = _number(report["maximum_allowed_difference"], "applied maximum difference", 1e-100)
-        _require(math.isclose(bound, rules["maximum_allowed_difference"], rel_tol=REL_TOL, abs_tol=0) or exploratory,
+        _require(math.isclose(bound, rules["maximum_allowed_difference"], rel_tol=EDGE_TOL, abs_tol=0) or exploratory,
                  "post-hoc-bound", "post-outcome bound change requires exploratory label")
         _require(report["agreement_measure"] == "limits-of-agreement",
                  "correlation-as-agreement", "correlation cannot substitute for limits of agreement")

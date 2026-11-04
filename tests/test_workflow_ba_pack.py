@@ -198,6 +198,11 @@ class BlandAltmanPackTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '^insufficient-pairs:'):
             pack.compute_agreement(original, self.documents['rules'])
 
+    def test_reported_bound_cannot_drift_within_report_tolerance(self):
+        self.documents['report']['maximum_allowed_difference'] = 6 * (1 + 5e-9)
+        with self.assertRaisesRegex(ValueError, '^post-hoc-bound:'):
+            pack.validate_bland_altman_agreement_pack(self.save())
+
     def test_normality_screen_and_bound_edges(self):
         result = pack.compute_agreement(self.documents['pairs'], self.documents['rules'])['summary']
         self.documents['rules']['normality_max_abs_skewness'] = abs(result['normality']['skewness'])

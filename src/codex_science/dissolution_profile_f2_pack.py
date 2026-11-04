@@ -331,7 +331,7 @@ def _times(value, label, empty=False):
     values = _list(value, label, MAX_TIME_POINTS, empty)
     for item in values:
         _number(item, label, 0, 1e9)
-    _require(all(b > a and not _close(a, b) for a, b in zip(values, values[1:])),
+    _require(all(b > a and not _edge(a, b) for a, b in zip(values, values[1:])),
              "time-points", "time points must increase distinctly under relative tolerance")
     return values
 
@@ -341,7 +341,7 @@ def _selection(value, times):
     indices = []
     for time in selected:
         _require(time > 0, "time-zero", "time point zero must be excluded")
-        matches = [i for i, frozen in enumerate(times) if _close(time, frozen)]
+        matches = [i for i, frozen in enumerate(times) if _edge(time, frozen)]
         _require(len(matches) == 1, "time-points", "selection must use shared frozen time points")
         indices.append(matches[0])
     return selected, indices
@@ -363,7 +363,7 @@ def _rules(value):
     for field, expected in (("first_cv_limit", 20), ("later_cv_limit", 10),
                             ("late_percent_limit", 85), ("f2_threshold", 50)):
         _number(value[field], field)
-        _require(_close(value[field], expected), "frozen-threshold", "fixed arithmetic threshold changed")
+        _require(_edge(value[field], expected), "frozen-threshold", "fixed arithmetic threshold changed")
     _require(value["averaging_rule"] == "product-means-per-time-point",
              "mean-rule", "f1 and f2 must use product means, never individual unit pairs")
     return value
@@ -387,7 +387,7 @@ def compute_dissolution(profiles, rules, selected_time_points=None):
                  "product-identity", "unknown or duplicate product identity")
         times = _times(product["time_points"], "product time points")
         _require(len(times) == len(rules["time_points"]) and
-                 all(_close(a, b) for a, b in zip(times, rules["time_points"])),
+                 all(_edge(a, b) for a, b in zip(times, rules["time_points"])),
                  "unequal-time-points", "products must share every frozen time point")
         units = _list(product["units"], "product units", MAX_UNITS)
         _require(len(units) >= rules["units_per_product"][identity],

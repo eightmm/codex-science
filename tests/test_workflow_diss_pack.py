@@ -457,6 +457,11 @@ class DissolutionPackTests(unittest.TestCase):
         self.assertFalse(pack._edge(85.00000001, 85))
         self.assertFalse(pack._edge(49.99999998, 50))
 
+    def test_frozen_limit_cannot_drift_within_report_tolerance(self):
+        self.documents['rules']['first_cv_limit'] = 20 * (1 + 5e-9)
+        with self.assertRaisesRegex(ValueError, '^frozen-threshold:'):
+            pack.compute_dissolution(self.documents['profiles'], self.documents['rules'])
+
     def test_cli_success_refusal_arguments_and_help(self):
         command = [sys.executable, str(ROOT / 'scripts/validate_dissolution_profile_f2_pack.py')]
         for arguments in ([], ['--unknown'], [str(self.root / 'pack.json'), 'extra'], ['--output', 'x']):

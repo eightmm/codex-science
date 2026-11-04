@@ -465,7 +465,7 @@ def compute_cell_count_viability(counts, rules, square_ids=None):
         seen.add((chamber, square))
         for key in ("volume_ml", "dilution_factor"):
             _number(row[key], key, 1e-12, 1e6)
-            _require(math.isclose(row[key], rules[key], rel_tol=REL_TOL, abs_tol=0),
+            _require(math.isclose(row[key], rules[key], rel_tol=EDGE_TOL, abs_tol=0),
                      "chamber-exposure", "count exposure differs from frozen rule")
         _mixing(row["mixing_ratio"])
         _require(row["mixing_ratio"] == rules["mixing_ratio"], "chamber-exposure", "mixing ratio changed")
@@ -609,7 +609,7 @@ def validate_cell_count_viability_pack(bundle):
         _require(report["interval_method"] == rules["interval_method"],
                  "binomial-interval", "Wald or other approximate interval is refused")
         _number(report["interval_level"], "reported interval level", 0.5, 0.999)
-        _require(math.isclose(report["interval_level"], rules["interval_level"], rel_tol=REL_TOL, abs_tol=0),
+        _require(math.isclose(report["interval_level"], rules["interval_level"], rel_tol=EDGE_TOL, abs_tol=0),
                  "binomial-interval", "reported interval level changed")
         headline = _text(report["headline"], "headline")
         _require(not OVERREACH.search(headline), "claim-overreach", "headline exceeds bounded synthetic arithmetic")

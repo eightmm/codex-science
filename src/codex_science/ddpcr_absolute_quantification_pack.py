@@ -502,7 +502,7 @@ def compute_ddpcr(counts, rules, thresholds=None):
                 reason = "ntc-contamination"
         elif row["positive"] == row["total"]:
             reason = "singular-positive-fraction"
-        elif p > thresholds["saturation_bound"]:
+        elif p > thresholds["saturation_bound"] and not math.isclose(p, thresholds["saturation_bound"], rel_tol=EDGE_TOLERANCE, abs_tol=0):
             reason = "saturated-well"
         output.append({**rule, "status": "unavailable" if reason != "none" else
                        "control-passed" if row["role"] == "ntc" else "quantified",
@@ -641,13 +641,13 @@ def validate_ddpcr_absolute_quantification_pack(bundle):
         exploratory = _boolean(report["exploratory"], "exploratory")
         thresholds = _thresholds(report["thresholds"])
         _require(exploratory or all(math.isclose(thresholds[key], rules[key],
-                                                rel_tol=RELATIVE_TOLERANCE, abs_tol=0) for key in thresholds),
+                                                rel_tol=EDGE_TOLERANCE, abs_tol=0) for key in thresholds),
                  "post-hoc-threshold", "post-outcome threshold changes require exploratory label")
         _require(report["interval_method"] == rules["interval_method"],
                  "binomial-interval", "normal approximation or omitted exact interval is refused")
         _number(report["confidence_level"], "reported confidence level", 0.5, 0.999)
         _require(math.isclose(report["confidence_level"], rules["confidence_level"],
-                              rel_tol=RELATIVE_TOLERANCE, abs_tol=0),
+                              rel_tol=EDGE_TOLERANCE, abs_tol=0),
                  "binomial-interval", "confidence level differs from frozen rule")
         headline = _text(report["headline"], "headline")
         _require(not OVERREACH.search(headline), "claim-overreach", "headline exceeds bounded synthetic arithmetic")
