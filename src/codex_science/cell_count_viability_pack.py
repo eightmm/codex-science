@@ -22,6 +22,7 @@ MAX_SQUARES = 64
 MAX_ARTIFACTS = 256
 REL_TOL = 1e-8
 EDGE_TOL = 1e-12
+FROZEN_ECHOES = frozenset(("interval_level", "level"))
 MAX_ITERATIONS = 1000
 QUANTILE_STEPS = 96
 MAX_RECORDS = 128
@@ -531,7 +532,7 @@ def compute_cell_count_viability(counts, rules, square_ids=None):
 def _same(actual, expected, label):
     if type(expected) in (int, float):
         _number(actual, label, -MAX_NUMBER, integer=type(expected) is int)
-        _require(math.isclose(actual, expected, rel_tol=REL_TOL, abs_tol=0),
+        _require(math.isclose(actual, expected, rel_tol=EDGE_TOL if label in FROZEN_ECHOES else REL_TOL, abs_tol=0),
                  "reported-number", f"reported {label} disagrees with reference")
     elif type(expected) is dict:
         _fields(actual, expected, label)

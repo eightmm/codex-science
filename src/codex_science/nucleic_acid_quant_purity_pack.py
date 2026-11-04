@@ -19,6 +19,7 @@ MAX_NODES = 4000000
 MAX_REPLICATES = 128
 RELATIVE_TOLERANCE = 1e-8
 EDGE_TOLERANCE = 1e-12
+FROZEN_ECHOES = frozenset(("minimum", "maximum"))
 
 
 def _inside(value, minimum, maximum):
@@ -479,8 +480,8 @@ def compute_quant_purity(readings, rules, purity_bands=None):
 def _same(actual, expected, label):
     if type(expected) in (int, float):
         _number(actual, label, -MAX_NUMBER, integer=type(expected) is int)
-        _require(math.isclose(actual, expected, rel_tol=RELATIVE_TOLERANCE, abs_tol=0),
-                 "reported-number", f"reported {label} disagrees with reference")
+        _require(math.isclose(actual, expected, rel_tol=EDGE_TOLERANCE if label in FROZEN_ECHOES else RELATIVE_TOLERANCE,
+                              abs_tol=0), "reported-number", f"reported {label} disagrees with reference")
     elif type(expected) is dict:
         _fields(actual, expected, label)
         for key in expected:

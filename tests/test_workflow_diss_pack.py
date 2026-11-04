@@ -452,6 +452,10 @@ class DissolutionPackTests(unittest.TestCase):
         pack._same(1e-20 * (1 + 1e-10), 1e-20, 'small relative tie')
         pack._same(1e-20 * (1 + 5e-9), 1e-20, 'documented relative tolerance')
 
+    def test_selection_refuses_two_times_mapping_to_one_frozen_time(self):
+        with self.assertRaisesRegex(ValueError, '^time-points:'):
+            pack._selection([4.99999999999625, 5.00000000000375, 10], [0, 5, 10, 15])
+
     def test_decision_edges_use_tight_tolerance(self):
         self.assertTrue(pack._edge(85 * (1 + 1e-13), 85))
         self.assertFalse(pack._edge(85.00000001, 85))
@@ -461,6 +465,11 @@ class DissolutionPackTests(unittest.TestCase):
         self.documents['rules']['first_cv_limit'] = 20 * (1 + 5e-9)
         with self.assertRaisesRegex(ValueError, '^frozen-threshold:'):
             pack.compute_dissolution(self.documents['profiles'], self.documents['rules'])
+
+    def test_frozen_echo_in_report_cannot_drift(self):
+        pack._same(20 * (1 + 5e-9), 20, 'reported_value')
+        with self.assertRaisesRegex(ValueError, '^reported-number:'):
+            pack._same(20 * (1 + 5e-9), 20, 'limit')
 
     def test_cli_success_refusal_arguments_and_help(self):
         command = [sys.executable, str(ROOT / 'scripts/validate_dissolution_profile_f2_pack.py')]

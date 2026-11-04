@@ -564,6 +564,11 @@ class CellPackTests(unittest.TestCase):
         pack._same(1e-20 * (1 + 1e-10), 1e-20, 'small relative tie')
         pack._same(1e-20 * (1 + 5e-9), 1e-20, 'documented relative tolerance')
 
+    def test_frozen_echo_in_report_cannot_drift(self):
+        pack._same(0.95 * (1 + 5e-9), 0.95, 'reported_value')
+        with self.assertRaisesRegex(ValueError, '^reported-number:'):
+            pack._same(0.95 * (1 + 5e-9), 0.95, 'level')
+
     def test_cli_success_refusal_arguments_and_help(self):
         command = [sys.executable, str(ROOT / 'scripts/validate_cell_count_viability_pack.py')]
         for arguments in ([], ['--unknown'], [str(self.root / 'pack.json'), 'extra'], ['--output', 'x']):

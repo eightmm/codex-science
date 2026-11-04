@@ -21,6 +21,7 @@ MAX_ITERATIONS = 10000
 QUANTILE_STEPS = 96
 REL_TOL = 1e-8
 EDGE_TOL = 1e-12
+FROZEN_ECHOES = frozenset(("maximum_allowed_difference",))
 SINGULAR_REL = 1e-12
 MAX_RECORDS = 128
 MAX_STRING = 4096
@@ -519,7 +520,7 @@ def _same(actual, expected, label):
         _require(_boolean(actual, label) is expected, "reported-result", f"reported {label} differs")
     elif type(expected) in (int, float):
         _number(actual, label, -MAX_NUMBER, integer=type(expected) is int)
-        _require(math.isclose(actual, expected, rel_tol=REL_TOL, abs_tol=0),
+        _require(math.isclose(actual, expected, rel_tol=EDGE_TOL if label in FROZEN_ECHOES else REL_TOL, abs_tol=0),
                  "reported-number", f"reported {label} disagrees with reference")
     elif type(expected) is dict:
         _fields(actual, expected, label)

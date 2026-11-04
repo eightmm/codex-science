@@ -25,6 +25,7 @@ MAX_DEPTH = 32
 MAX_NUMBER = 1e100
 REL_TOL = 1e-8
 EDGE_TOL = 1e-12
+FROZEN_ECHOES = frozenset(("limit", "time_point"))
 REL_DEGENERATE = 1e-12
 POSITIVE = {"supported", "replicated", "suggestive"}
 STATUSES = POSITIVE | {"planned", "conflicting", "unsupported", "withdrawn", "unavailable"}
@@ -344,6 +345,7 @@ def _selection(value, times):
         matches = [i for i, frozen in enumerate(times) if _edge(time, frozen)]
         _require(len(matches) == 1, "time-points", "selection must use shared frozen time points")
         indices.append(matches[0])
+    _require(len(set(indices)) == len(indices), "time-points", "selection must not repeat a frozen time point")
     return selected, indices
 
 
@@ -460,7 +462,8 @@ def compute_dissolution(profiles, rules, selected_time_points=None):
 def _same(actual, expected, label):
     if type(expected) in (int, float):
         _number(actual, label, -MAX_NUMBER)
-        _require(_close(actual, expected), "reported-number", f"reported {label} disagrees with reference")
+        _require(_edge(actual, expected) if label in FROZEN_ECHOES else _close(actual, expected),
+                 "reported-number", f"reported {label} disagrees with reference")
     elif type(expected) is dict:
         _fields(actual, expected, label)
         if label in {"unit_counts", "summary"}:

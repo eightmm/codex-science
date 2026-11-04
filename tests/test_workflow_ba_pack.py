@@ -203,6 +203,11 @@ class BlandAltmanPackTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '^post-hoc-bound:'):
             pack.validate_bland_altman_agreement_pack(self.save())
 
+    def test_frozen_echo_in_report_cannot_drift(self):
+        pack._same(6.0 * (1 + 5e-9), 6.0, 'reported_value')
+        with self.assertRaisesRegex(ValueError, '^reported-number:'):
+            pack._same(6.0 * (1 + 5e-9), 6.0, 'maximum_allowed_difference')
+
     def test_normality_screen_and_bound_edges(self):
         result = pack.compute_agreement(self.documents['pairs'], self.documents['rules'])['summary']
         self.documents['rules']['normality_max_abs_skewness'] = abs(result['normality']['skewness'])

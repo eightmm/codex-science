@@ -457,6 +457,11 @@ class DDPCRPackTests(unittest.TestCase):
         rules['saturation_bound'] = 0.49999999999999994
         self.assertNotEqual(pack.compute_ddpcr(counts, rules)['wells'][1]['reason'], 'saturated-well')
 
+    def test_frozen_echo_in_report_cannot_drift(self):
+        pack._same(0.95 * (1 + 5e-9), 0.95, 'reported_value')
+        with self.assertRaisesRegex(ValueError, '^reported-number:'):
+            pack._same(0.95 * (1 + 5e-9), 0.95, 'confidence_level')
+
     def test_cli_success_refusal_arguments_and_help(self):
         command = [sys.executable, str(ROOT / 'scripts/validate_ddpcr_absolute_quantification_pack.py')]
         for arguments in ([], ['--unknown'], [str(self.root / 'pack.json'), 'extra'], ['--output', 'x']):
