@@ -479,6 +479,23 @@ class PackTests(unittest.TestCase):
                     self.store()
                     self.refused("non-evidence")
 
+    def test_arithmetic_status_and_result_schema_cannot_support_positive_claims(self):
+        for field in ("kind", "result"):
+            for label in ("arithmetic-only", "enzyme-kinetics-result-v1"):
+                evidence = read(self.root / "evidence.json")
+                evidence.update(kind="observed", result="observed")
+                evidence[field] = label
+                identity = save(self.root, "claim-evidence.json", evidence)
+                claim = self.pack["claims"][0]
+                claim.update(status="unsupported", support=[dict(identity, origin="study")])
+                self.store()
+                kin.validate_enzyme_kinetics_pack(self.path)
+                for status in kin.POSITIVE:
+                    with self.subTest(field=field, label=label, status=status):
+                        claim["status"] = status
+                        self.store()
+                        self.refused("non-evidence")
+
     def test_unavailable_mixed_support_and_empty_support(self):
         claim = self.pack["claims"][0]
         for status in kin.STATUSES-{"unavailable"}:

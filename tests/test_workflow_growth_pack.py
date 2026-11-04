@@ -234,6 +234,24 @@ class GrowthClaimTests(_FixtureTest):
         with self.assertRaisesRegex(ValueError, '^claim-replication:'):
             growth._claims([dict(claim,status='replicated')], {'E':record})
 
+    def test_arithmetic_status_and_result_schema_cannot_support_positive_claims(self):
+        for field in ('kind', 'result'):
+            for label in ('arithmetic-only', 'growth-result-v1'):
+                self._edit('evidence', ['records', 0, 'kind'], 'observed')
+                self._edit('evidence', ['records', 0, 'result'], 'observed')
+                self._edit('evidence', ['records', 0, field], label)
+                record = _read(self.directory / 'evidence.json')['records'][0]
+                self._edit('report', ['claims', 0, 'evidence'], [record['id']])
+                self._edit('report', ['claims', 0, 'status'], 'unsupported')
+                self._refresh()
+                self._validate()
+                for status in growth.POSITIVE:
+                    with self.subTest(field=field, label=label, status=status):
+                        self._edit('report', ['claims', 0, 'status'], status)
+                        self._refresh()
+                        with self.assertRaisesRegex(ValueError, '^non-evidence-support:'):
+                            self._validate()
+
     def test_external_identity_aliases_and_boundary_order(self):
         for origin in ('external','independent','preregistered'):
             self._edit('evidence',['records',0,'origin'],origin)

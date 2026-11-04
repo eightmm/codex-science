@@ -43,7 +43,7 @@ OVERREACH = re.compile(
     r"inhibit\w*|activat\w*|regulat\w*|driv\w*|induc\w*|unbiased|valid\w*|"
     r"confirmatory|truth|patient[\s-]+benefit\w*)\b", re.I)
 ASSERTION = re.compile(r"\b(?:supported|replicated|suggestive|significan\w*)\b", re.I)
-NON_EVIDENCE = re.compile(r"review|approv|comput|numer|agreement|truth|physical|clinic", re.I)
+NON_EVIDENCE = re.compile(r"review|approv|comput|numer|arithmet|result-v1|agreement|truth|physical|clinic", re.I)
 
 
 def _require(condition, code, message):

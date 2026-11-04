@@ -384,6 +384,14 @@ class CFUPackTests(unittest.TestCase):
             with self.subTest(kind=kind, result=result), self.assertRaisesRegex(ValueError, '^non-evidence-support:'):
                 pack.validate_cfu_plate_count_pack(self.save())
 
+    def test_arithmetic_and_result_schema_are_non_evidence(self):
+        for field in ('kind', 'result'):
+            for value in ('arithmetic-only', 'cfu-result-v1'):
+                with self.subTest(field=field, value=value):
+                    self.evidence(**{'kind': 'observed', 'result': 'observed', field: value})
+                    with self.assertRaisesRegex(ValueError, '^non-evidence-support:'):
+                        pack.validate_cfu_plate_count_pack(self.save())
+
     def test_unavailable_mixed_evidence_all_statuses(self):
         for status in sorted(pack.STATUSES - {'unavailable'}):
             self.evidence('unavailable', 'unavailable')

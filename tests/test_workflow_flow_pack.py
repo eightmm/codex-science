@@ -203,6 +203,23 @@ class FlowClaimTests(FixtureCase):
                         with self.assertRaisesRegex(ValueError, "non-evidence-support:"):
                             self.validate()
 
+    def test_arithmetic_status_and_result_schema_cannot_support_positive_claims(self):
+        pack_path = self.directory / "pack.json"
+        pack = read(pack_path)
+        for field in ("kind", "result"):
+            for label in ("arithmetic-only", "flow-cytometry-qc-result-v1"):
+                pack["evidence"][0].update(kind="observed", result="observed")
+                pack["evidence"][0][field] = label
+                pack["claims"][0]["status"] = "unsupported"
+                write(pack_path, pack)
+                self.validate()
+                for status in flow.POSITIVE:
+                    with self.subTest(field=field, label=label, status=status):
+                        pack["claims"][0]["status"] = status
+                        write(pack_path, pack)
+                        with self.assertRaisesRegex(ValueError, "^non-evidence-support:"):
+                            self.validate()
+
     def test_unavailable_mixed_evidence_and_empty_claim(self):
         pack = read(self.directory / "pack.json")
         pack["evidence"][0].update(kind="observed", result="observed")

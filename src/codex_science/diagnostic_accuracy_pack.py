@@ -35,7 +35,7 @@ FORBIDDEN_WORDING = (
     r"screening[\s-]+(?:utility|use)|physical[\s-]+validity|patient[\s-]+benefit\w*)\b"
 )
 UNAVAILABLE_POSITIVE = r"\b(?:supported|replicated|suggestive|significan\w*)\b"
-NON_EVIDENCE = re.compile(r"review|approv|comput|numer|physical|clinic|truth", re.I)
+NON_EVIDENCE = re.compile(r"review|approv|comput|numer|arithmet|result-v1|physical|clinic|truth", re.I)
 
 
 def _require(condition, code, message):

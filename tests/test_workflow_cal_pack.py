@@ -440,6 +440,21 @@ class CalibrationPackTests(unittest.TestCase):
             with self.subTest(status=status), self.assertRaisesRegex(ValueError, "^unavailable-evidence:"):
                 cal.validate_calibration_lod_pack(self.pack_path)
 
+    def test_arithmetic_and_result_schema_are_non_evidence(self):
+        pack = self.read("pack.json")
+        evidence = self.read("evidence.json")
+        for field in ("kind", "result"):
+            for value in ("arithmetic-only", "calibration-lod-result-v1"):
+                with self.subTest(field=field, value=value):
+                    record = dict(evidence, kind="observed", result="observed")
+                    record[field] = value
+                    identity = self.write("observed.json", record)
+                    pack["claims"][0].update(status="supported", text="Observed fixture response.",
+                                              support=[dict(identity, origin="study")])
+                    self.write("pack.json", pack)
+                    with self.assertRaisesRegex(ValueError, "^non-evidence:"):
+                        cal.validate_calibration_lod_pack(self.pack_path)
+
     def test_threshold_equality_and_loq_at_standard_edges(self):
         protocol, data = self.read("protocol.json"), self.read("data.json")
         protocol["exclusion_rule"] = "none"

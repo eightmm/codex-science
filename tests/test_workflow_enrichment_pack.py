@@ -483,6 +483,27 @@ class EnrichmentSafetyTests(_Fixture):
             self.directory.rmdir()
             saved.rename(self.directory)
 
+    def test_arithmetic_status_and_result_schema_cannot_support_positive_claims(self):
+        for field in ("kind", "result"):
+            for label in ("arithmetic-only", "gso-result-v1"):
+                evidence = self._load("evidence")
+                record = evidence["records"][0]
+                record.update(kind="observed", result="observed")
+                record[field] = label
+                self._save("evidence", evidence)
+                pack = self._load("pack")
+                pack["claims"][0].update(status="unsupported", evidence=[record["id"]])
+                self._save("pack", pack)
+                self._refresh()
+                self._validate()
+                pack = self._load("pack")
+                for status in gso.POSITIVE:
+                    with self.subTest(field=field, label=label, status=status):
+                        pack["claims"][0]["status"] = status
+                        self._save("pack", pack)
+                        with self.assertRaisesRegex(ValueError, "^non-evidence:"):
+                            self._validate()
+
     def test_claim_status_evidence_and_wording_families(self):
         record = {"id": "observed", "kind": "observed", "result": "frozen-inputs"}
         claim = {"id": "C", "kind": "descriptive", "status": "supported", "text": "Synthetic over-representation.", "evidence": ["observed"]}

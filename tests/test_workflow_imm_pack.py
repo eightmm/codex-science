@@ -289,6 +289,25 @@ for _case in CASES:
 
 
 class AdmissionTests(_FixtureTest):
+    def test_arithmetic_and_result_schema_labels_cannot_support_positive_claims(self):
+        evidence = _read(self.directory / "evidence.json")
+        record = evidence["records"][0]
+        report = _read(self.directory / "report.json")
+        report["claims"][0]["status"] = "supported"
+        _write(self.directory / "report.json", report)
+        record.update(kind="observed", result="observed")
+        _write(self.directory / "evidence.json", evidence)
+        self._refresh()
+        self.assertEqual("accepted", self._validate()["status"])
+        for field in ("kind", "result"):
+            for label in ("arithmetic-only", "immunoassay-result-v1"):
+                record.update(kind="observed", result="observed")
+                record[field] = label
+                _write(self.directory / "evidence.json", evidence)
+                self._refresh()
+                with self.subTest(field=field, label=label), self.assertRaisesRegex(ValueError, "^non-evidence-support:"):
+                    self._validate()
+
     def test_source_contents_override_positive_evidence_labels(self):
         evidence = _read(self.directory / "evidence.json")
         source = self.directory / "source.json"

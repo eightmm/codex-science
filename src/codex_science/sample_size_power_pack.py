@@ -40,7 +40,7 @@ OVERREACH = re.compile(
     + r"|observed[\s-]+power|post[\s-]*hoc[\s-]+power)\b", re.I,
 )
 ASSERTION = re.compile(r"\b(?:supported|replicated|suggestive|significan\w*)\b", re.I)
-NON_EVIDENCE = re.compile(r"review|approv|comput|numer|agreement|truth|physical|clinic", re.I)
+NON_EVIDENCE = re.compile(r"review|approv|comput|numer|arithmet|result-v1|agreement|truth|physical|clinic", re.I)
 PARAMETERS = ("alpha", "adjusted_alpha", "target_power", "allocation_ratio", "nuisance",
               "effect", "attrition", "multiplicity", "minimum_n", "sensitivity_points", "outcome_range")
 

@@ -660,6 +660,22 @@ class AdmissionTests(FixtureTest):
                 for status in stab.POSITIVE:
                     self.refusal("non-evidence-support", lambda: stab._claims([dict(claim,status=status)], {"observed":record}))
 
+    def test_arithmetic_status_and_result_schema_cannot_support_positive_claims(self):
+        self.edit("report", ["claims", 0, "status"], "supported")
+        evidence = _read(self.directory / "evidence.json")
+        evidence["records"][0].update(kind="observed", result="recorded")
+        _write(self.directory / "evidence.json", evidence)
+        self.refresh()
+        self.validate()
+        for field in ("kind", "result"):
+            for label in ("arithmetic-only", "stability-shelf-life-result-v1"):
+                with self.subTest(field=field, label=label):
+                    changed = copy.deepcopy(evidence)
+                    changed["records"][0][field] = label
+                    _write(self.directory / "evidence.json", changed)
+                    self.refresh()
+                    self.refusal("non-evidence-support")
+
     def test_external_labels_and_hash_aliases(self):
         original = _read(self.directory / "evidence.json")
         shutil.copyfile(self.directory / "data.json", self.directory / "separate.json")

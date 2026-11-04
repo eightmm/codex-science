@@ -466,6 +466,22 @@ class CrisprClaimTests(_Fixture):
             with self.subTest(origin=origin), self.assertRaisesRegex(ValueError,'^dependent-evidence:'):
                 self.run_pack(folder)
 
+    def test_arithmetic_and_result_schema_are_non_evidence(self):
+        folder = self.folder()
+        for field in ('kind', 'result'):
+            for value in ('arithmetic-only', 'crispr-result-v1'):
+                with self.subTest(field=field, value=value):
+                    record = {'schema': 'crispr-evidence-v1', 'schema_version': 1, 'fixture': True,
+                              'kind': 'guide-count-observation', 'result': 'gene-level-association',
+                              'origin': 'study', 'gene_id': 'A'}
+                    record[field] = value
+                    identity = self.write(folder, 'observed.json', record)
+                    self.pack['claims'][0].update(status='supported', support=[identity])
+                    with self.assertRaisesRegex(ValueError, '^claim-evidence:'):
+                        self.run_pack(folder)
+                    # The exact evidence whitelist also refuses these records.
+                    self.assertIsNotNone(self.api.NON_EVIDENCE.search(value))
+
     def test_support_limits_and_positive_exploratory_claims(self):
         folder = self.folder()
         record = {'schema':'crispr-evidence-v1','schema_version':1,'fixture':True,

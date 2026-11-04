@@ -29,7 +29,7 @@ OVERREACH = re.compile(
     r"trajector\w*|pseudotim\w*|truth|physical[\s-]+validity|"
     r"disease[\s-]+modif\w*|patient[\s-]+benefit\w*)\b", re.I,
 )
-NON_EVIDENCE = re.compile(r"review|approv|comput|numer|physical|clinical|truth", re.I)
+NON_EVIDENCE = re.compile(r"review|approv|comput|numer|arithmet|result-v1|physical|clinical|truth", re.I)
 
 
 def _require(condition, code, message):

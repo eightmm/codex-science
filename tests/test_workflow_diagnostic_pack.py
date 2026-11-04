@@ -258,6 +258,20 @@ class DiagnosticSeededRefusalTests(FixtureCase):
 
 
 class DiagnosticHardeningTests(FixtureCase):
+    def test_arithmetic_and_result_schema_are_non_evidence(self):
+        folder = self.folder()
+        evidence = json.loads((folder / "evidence.json").read_bytes())
+        for field in ("kind", "result"):
+            for value in ("arithmetic-only", "diagnostic-accuracy-result-v1"):
+                with self.subTest(field=field, value=value):
+                    record = dict(evidence, **{field: value})
+                    identity = self.write(folder, "observed.json", record)
+                    self.pack["claims"][0].update(status="supported", support=[dict(identity, origin="study")])
+                    with self.assertRaisesRegex(ValueError, "^non-evidence:"):
+                        self.run_pack(folder)
+                    # The exact evidence whitelist also refuses these records.
+                    self.assertIsNotNone(self.api.NON_EVIDENCE.search(value))
+
     def test_unavailable_support_requires_unavailable_status(self):
         folder = self.folder()
         evidence = json.loads((folder / "evidence.json").read_bytes())

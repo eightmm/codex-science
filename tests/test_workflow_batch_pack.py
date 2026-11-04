@@ -293,6 +293,18 @@ class BatchRefusalTests(FixtureCase):
         with self.assertRaisesRegex(ValueError, '^evidence-independence:'):
             self.run_pack(folder)
 
+    def test_arithmetic_and_result_schema_are_non_evidence(self):
+        folder = self.folder()
+        for field in ('kind', 'result'):
+            for value in ('arithmetic-only', 'batch-effect-result-v1'):
+                with self.subTest(field=field, value=value):
+                    identity = self.observed(folder, **{field: value})
+                    self.positive(identity)
+                    with self.assertRaisesRegex(ValueError, '^non-evidence:'):
+                        self.run_pack(folder)
+                    # The exact evidence whitelist also refuses these records.
+                    self.assertIsNotNone(self.api.NON_EVIDENCE.search(value))
+
     def test_unavailable_citations_all_statuses_and_mixed_support(self):
         folder = self.folder()
         observed = self.observed(folder)

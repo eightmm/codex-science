@@ -323,6 +323,24 @@ class PowerTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "^non-evidence:"):
                     self.validate()
 
+    def test_arithmetic_status_and_result_schema_cannot_support_positive_claims(self):
+        pack = read(self.directory / "pack.json")
+        pack["claims"][0].update(status="supported", support=[
+            {**identity(self.directory / "observed.json"), "origin": "study"}])
+        write(self.directory / "pack.json", pack)
+        source = read(self.directory / "observed.json")
+        self.refresh()
+        self.validate()
+        for field in ("kind", "result"):
+            for label in ("arithmetic-only", "sample-size-power-result-v1"):
+                with self.subTest(field=field, label=label):
+                    changed = dict(source)
+                    changed[field] = label
+                    write(self.directory / "observed.json", changed)
+                    self.refresh()
+                    with self.assertRaisesRegex(ValueError, "^non-evidence:"):
+                        self.validate()
+
     def test_prior_source_and_output_aliases(self):
         for origin in ("external", "independent", "preregistered"):
             self.edit("pack.json", ["claims", 0, "support", 0, "origin"], origin)

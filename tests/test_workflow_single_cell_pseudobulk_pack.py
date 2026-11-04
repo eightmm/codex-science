@@ -374,6 +374,21 @@ class SingleCellPseudobulkTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "^unavailable-evidence:"):
             self._run(folder)
 
+    def test_arithmetic_status_and_result_schema_cannot_support_positive_claims(self):
+        folder = self._folder()
+        evidence = json.loads((folder / "observation.json").read_bytes())
+        self._run(folder)
+        for field in ("kind", "result"):
+            for label in ("arithmetic-only", "single-cell-pseudobulk-result-v1"):
+                with self.subTest(field=field, label=label):
+                    changed = dict(evidence)
+                    changed[field] = label
+                    ref = self._write(folder, "claim-evidence.json", changed)
+                    self.pack["claims"][0]["support"] = [ref]
+                    with self.assertRaisesRegex(ValueError, "^claim-evidence:"):
+                        self._run(folder)
+                    self.assertRegex(label, self.api.NON_EVIDENCE)
+
     def test_json_duplicate_nonfinite_huge_deep_and_wrong_roots(self):
         samples = [b'', b'[]', b'null', b'true', b'{"a":1,"a":2}', b'{"x":{"a":1,"a":2}}',
                    b'{"x":NaN}', b'{"x":Infinity}', b'{"x":1e9999}', b'{"x":' + b'9'*5000 + b'}',

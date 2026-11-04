@@ -245,6 +245,22 @@ class BoundaryTests(FixtureTest):
         with self.assertRaisesRegex(ValueError,"non-evidence-support"):
             gwas._claims([{**base,"status":"replicated"}],{"E1":dict(kind="review-approval",result="recorded")})
 
+    def test_arithmetic_status_and_result_schema_cannot_support_positive_claims(self):
+        for field in ("kind", "result"):
+            for label in ("arithmetic-only", "gwas-summary-qc-result-v1"):
+                self.edit("evidence", ["records", 0, "kind"], "observed")
+                self.edit("evidence", ["records", 0, "result"], "observed")
+                self.edit("evidence", ["records", 0, field], label)
+                self.edit("report", ["claims", 0, "status"], "unsupported")
+                self.refresh()
+                self.validate()
+                for status in gwas.POSITIVE:
+                    with self.subTest(field=field, label=label, status=status):
+                        self.edit("report", ["claims", 0, "status"], status)
+                        self.refresh()
+                        with self.assertRaisesRegex(ValueError, "^non-evidence-support:"):
+                            self.validate()
+
     def test_json_refusals_and_limits(self):
         bad=[b'{"x":1,"x":2}',b'{"x":{"a":1,"a":2}}',b'[]',b'null',b'{"x":NaN}',
              b'{"x":Infinity}',b'{"x":1e999}',b'{"x":'+b'9'*200+b'}',b'\xff',b'{',

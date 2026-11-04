@@ -323,6 +323,22 @@ class RandomizationInputTests(_Fixture):
             self.refresh()
             self.refuse("unavailable-evidence")
 
+    def test_arithmetic_status_and_result_schema_cannot_support_positive_claims(self):
+        report = self.document("report")
+        report["claims"][0].update(status="supported", support=["E3"], text="The synthetic roster was recorded.")
+        _write(self.directory / "report.json", report)
+        evidence = self.document("evidence")
+        self.refresh()
+        self.validate()
+        for field in ("kind", "result"):
+            for label in ("arithmetic-only", "randomization-audit-result-v1"):
+                with self.subTest(field=field, label=label):
+                    changed = copy.deepcopy(evidence)
+                    changed["records"][2][field] = label
+                    _write(self.directory / "evidence.json", changed)
+                    self.refresh()
+                    self.refuse("non-evidence")
+
     def test_regular_file_path_hash_and_growth_controls(self):
         pack = self.document("pack")
         for name in ("/absolute", "../escape", "a\\b", "./units.json", "a//b", "a/../b"):

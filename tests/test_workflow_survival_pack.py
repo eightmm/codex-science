@@ -230,6 +230,21 @@ class SurvivalDefectTests(_FixtureTest):
                         with self.assertRaisesRegex(ValueError, "^non-evidence-support:"):
                             self._validate()
 
+    def test_arithmetic_status_and_result_schema_cannot_support_positive_claims(self):
+        self._edit("report", ["claims", 0, "status"], "supported")
+        evidence = _read(self.directory / "evidence.json")
+        self._refresh()
+        self._validate()
+        for field in ("kind", "result"):
+            for label in ("arithmetic-only", "survival-result-v1"):
+                with self.subTest(field=field, label=label):
+                    changed = copy.deepcopy(evidence)
+                    changed["records"][0][field] = label
+                    _write(self.directory / "evidence.json", changed)
+                    self._refresh()
+                    with self.assertRaisesRegex(ValueError, "^non-evidence-support:"):
+                        self._validate()
+
     def test_external_alias_by_hash_and_each_origin(self):
         shutil.copyfile(self.directory / "cohort.json", self.directory / "renamed.json")
         for origin in ("external", "independent", "preregistered"):

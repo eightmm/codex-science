@@ -34,7 +34,7 @@ OVERREACH = re.compile(
     r"\b(?:" + "|".join(word + r"\w*" for word in WORDING_FAMILIES)
     + r"|diagnos\w*|patient\w*|truth|physical[\s-]+validity|cut[\s-]*off\w*)\b", re.I,
 )
-NON_EVIDENCE = re.compile(r"review|approv|comput|numer|agreement|truth|physical|clinic", re.I)
+NON_EVIDENCE = re.compile(r"review|approv|comput|numer|arithmet|result-v1|agreement|truth|physical|clinic", re.I)
 UNAVAILABLE_POSITIVE = re.compile(r"\b(?:supported|replicated|suggestive|significan\w*)\b", re.I)
 POSITIVE = {"supported", "replicated", "suggestive"}
 STATUSES = POSITIVE | {"planned", "conflicting", "unsupported", "withdrawn", "unavailable"}

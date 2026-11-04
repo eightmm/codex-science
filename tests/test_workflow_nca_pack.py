@@ -80,6 +80,23 @@ class NcaTests(unittest.TestCase):
         return subprocess.run([sys.executable, str(CLI), *map(str, args)], text=True,
                               capture_output=True, timeout=CALL_TIMEOUT)
 
+    def test_arithmetic_and_result_schema_labels_cannot_support_positive_claims(self):
+        evidence = read(self.directory / "evidence.json")
+        record = evidence["records"][0]
+        self.edit("report", ["claims", 0, "status"], "supported")
+        record.update(kind="observed", result="observed")
+        write(self.directory / "evidence.json", evidence)
+        self.refresh()
+        self.assertEqual("arithmetic-only", self.validate()["status"])
+        for field in ("kind", "result"):
+            for label in ("arithmetic-only", "pk-nca-result-v1"):
+                record.update(kind="observed", result="observed")
+                record[field] = label
+                write(self.directory / "evidence.json", evidence)
+                self.refresh()
+                with self.subTest(field=field, label=label), self.assertRaisesRegex(ValueError, "^claim-computed:"):
+                    self.validate()
+
     def test_fixture_hand_calculations_and_read_only_concurrency(self):
         before = {p.name: p.read_bytes() for p in self.directory.iterdir()}
         with ThreadPoolExecutor(max_workers=2) as pool:

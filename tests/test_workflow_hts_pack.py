@@ -438,6 +438,21 @@ class HTSHardeningTests(_Fixture):
             parent.rmdir()
             moved.rename(parent)
 
+    def test_arithmetic_status_and_result_schema_cannot_support_positive_claims(self):
+        original = self.read('evidence')
+        for field in ('kind', 'result'):
+            for label in ('arithmetic-only', 'hts-result-v1'):
+                evidence = dict(original, **{field: label})
+                self.save('evidence', evidence)
+                self.pack['claims'][0]['status'] = 'unsupported'
+                self.run_pack()
+                for status in self.api.POSITIVE:
+                    with self.subTest(field=field, label=label, status=status):
+                        self.pack['claims'][0]['status'] = status
+                        self.refusal('claim-evidence')
+                        # Exact screening labels already refuse these records; classify them too.
+                        self.assertIsNotNone(self.api.NON_EVIDENCE.search(evidence[field]))
+
     def test_claim_families_unavailable_mixed_and_independence(self):
         for family in self.api.WORDING_FAMILIES:
             self.pack = json.loads((FIXTURE / 'pack.json').read_bytes())

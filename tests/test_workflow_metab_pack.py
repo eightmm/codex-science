@@ -222,6 +222,24 @@ for _case in CASES:
 
 
 class MetabHardeningTests(_Fixture):
+    def test_arithmetic_and_result_schema_labels_cannot_support_positive_claims(self):
+        folder = self.folder()
+        evidence = self.read("evidence.json")
+        record = evidence["records"][0]
+        self.report["claims"][0].update(status="supported", text="Synthetic feature counts recorded.",
+                                         evidence=[record["id"]])
+        self.pack["report"] = self.write(folder, "report.json", self.report)
+        record.update(kind="observed", result="observed")
+        self.pack["evidence"] = [self.write(folder, "evidence.json", evidence)]
+        self.assertEqual("offline-arithmetic-only", self.run_pack(folder)["status"])
+        for field in ("kind", "result"):
+            for label in ("arithmetic-only", "metab-result-v1"):
+                record.update(kind="observed", result="observed")
+                record[field] = label
+                self.pack["evidence"] = [self.write(folder, "evidence.json", evidence)]
+                with self.subTest(field=field, label=label), self.assertRaisesRegex(ValueError, "^non-evidence-support:"):
+                    self.run_pack(folder)
+
     def test_json_refusals_preparse_allowance_and_no_findall(self):
         invalid = (b'', b'{', b'[]', b'{"a":0,"a":1}', b'{"a":{"b":1,"b":2}}',
                    b'{"a":NaN}', b'{"a":Infinity}', b'{"a":1e999}', b'{"a":' + b'9' * 102 + b'}',

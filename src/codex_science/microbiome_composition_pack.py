@@ -47,7 +47,7 @@ OVERREACH = re.compile(
 ABSOLUTE = re.compile(r"\b(?:absolute\w*|(?:microbial|taxon|total)[\s-]+load)\b", re.I)
 ABSENCE = re.compile(r"\b(?:absen\w*|eradicated)\b", re.I)
 ASSERTION = re.compile(r"\b(?:supported|replicated|suggestive|significan\w*)\b", re.I)
-NON_EVIDENCE = re.compile(r"review|approv|comput|numer|agreement|truth|physical|clinic", re.I)
+NON_EVIDENCE = re.compile(r"review|approv|comput|numer|arithmet|result-v1|agreement|truth|physical|clinic", re.I)
 
 
 def _require(condition, code, message):

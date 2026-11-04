@@ -241,6 +241,14 @@ class CallsetQCTests(unittest.TestCase):
         with self.refuse('unavailable-evidence'):
             self.validate()
 
+    def test_arithmetic_and_result_schema_are_non_evidence(self):
+        for field in ('kind', 'result'):
+            for value in ('arithmetic-only', 'callset-qc-result-v1'):
+                with self.subTest(field=field, value=value):
+                    self.evidence_claim(**{'kind': 'synthetic-observation', 'result': 'observed', field: value})
+                    with self.refuse('non-evidence-support'):
+                        self.validate()
+
     def test_mixed_unavailable_evidence_and_wording(self):
         self.evidence_claim(kind='synthetic-observation', result='observed')
         pack = self.read('pack.json')
